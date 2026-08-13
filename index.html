@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』" />
+    <title>ホケット | P0技術試作</title>
+  </head>
+  <body>
+    <main id="app" aria-labelledby="page-title">
+      <section class="shell">
+        <p class="eyebrow">P0 技術試作</p>
+        <h1 id="page-title">ホケット</h1>
+        <p class="lead">下から弾を撃ち、パックを上のゴールへ動かします。</p>
+        <div class="status-panel" aria-live="polite">
+          <strong>試作の確認項目</strong>
+          <span>縦画面・座標・Canvas描画・安全な余白</span>
+        </div>
+        <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
+        <p class="caption">これはP0の技術試作です。得点や対戦はまだ実装していません。</p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
