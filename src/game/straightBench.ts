@@ -72,6 +72,8 @@ export interface StraightBenchSnapshot {
   readonly playerCanFire: boolean;
 }
 
+export type TurretReadiness = 'ready' | 'thinking' | 'charging' | 'stopped';
+
 export const STRAIGHT_BENCH_SNAPSHOT: StraightBenchSnapshot = {
   playerTurret: PLAYER_TURRET,
   cpuTurret: CPU_TURRET,
@@ -490,6 +492,22 @@ export function firePlayerShot(state: StraightBenchState, target: Point): Straig
 export function fireCpuShot(state: StraightBenchState, target: Point): StraightBenchState {
   if (state.cpuThinkTicks > 0) return state;
   return fireShot(state, 'cpu', target);
+}
+
+export function getPlayerTurretReadiness(state: StraightBenchState): TurretReadiness {
+  if (!isActivePhase(state.match.phase)) return 'stopped';
+  return state.cooldownTicks === 0 ? 'ready' : 'charging';
+}
+
+export function getCpuTurretReadiness(state: StraightBenchState): TurretReadiness {
+  if (!isActivePhase(state.match.phase)) return 'stopped';
+  if (state.cpuThinkTicks > 0) return 'thinking';
+  return state.cpuCooldownTicks === 0 ? 'ready' : 'charging';
+}
+
+export function createStraightBenchRematch(state: StraightBenchState): StraightBenchState {
+  if (state.match.phase !== 'RESULT') return state;
+  return createStraightBenchState(state.match.seed + 1);
 }
 
 export function stepStraightBench(state: StraightBenchState, ticks = 1): StraightBenchState {
