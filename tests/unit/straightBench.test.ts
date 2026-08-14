@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CPU_REACTION_TICKS,
   GOAL_PAUSE_TICKS,
   SHOT_COOLDOWN_TICKS,
   createStraightBenchState,
+  fireCpuShot,
   firePlayerShot,
   stepStraightBench,
 } from '../../src/game/straightBench';
@@ -22,7 +24,7 @@ describe('straight bench simulation', () => {
     const fired = firePlayerShot(createStraightBenchState(), { x: 180, y: 320 });
     const afterHit = stepStraightBench(fired, 40);
 
-    expect(afterHit.bullets).toHaveLength(0);
+    expect(afterHit.bullets.filter((bullet) => bullet.owner === 'player')).toHaveLength(0);
     expect(afterHit.pucks[0]?.velocity.y).toBeLessThan(0);
     expect(afterHit.pucks[0]?.position.y).toBeLessThan(320);
   });
@@ -158,5 +160,65 @@ describe('straight bench simulation', () => {
 
     expect(firePlayerShot(state, { x: Number.NaN, y: 320 })).toBe(state);
     expect(firePlayerShot(state, { x: 180, y: Number.POSITIVE_INFINITY })).toBe(state);
+  });
+
+  it('CPUは初回の反応待ち後に、プレイヤー入力なしで1発を撃つ', () => {
+    const initial = createStraightBenchState();
+
+    expect(initial.cpuThinkTicks).toBe(CPU_REACTION_TICKS);
+    const afterReaction = stepStraightBench(initial, CPU_REACTION_TICKS);
+    const cpuBullets = afterReaction.bullets.filter((bullet) => bullet.owner === 'cpu');
+
+    expect(cpuBullets).toHaveLength(1);
+    expect(cpuBullets[0]?.velocity.y).toBeGreaterThan(0);
+    expect(afterReaction.cpuCooldownTicks).toBe(SHOT_COOLDOWN_TICKS);
+
+    const stillCooling = stepStraightBench(afterReaction, CPU_REACTION_TICKS);
+    expect(stillCooling.nextBulletId).toBe(afterReaction.nextBulletId);
+  });
+
+  it('CPU弾も同じ命中判定でパックを自陣方向へ押す', () => {
+    const initial = createStraightBenchState();
+    const ready = {
+      ...initial,
+      cpuThinkTicks: 0,
+      cpuCooldownTicks: 0,
+    };
+
+    const afterHit = stepStraightBench(ready, 40);
+
+    expect(afterHit.pucks[0]?.velocity.y).toBeGreaterThan(0);
+    expect(afterHit.bullets.filter((bullet) => bullet.owner === 'cpu')).toHaveLength(0);
+  });
+
+  it('プレイヤーとCPUの発射待ちは別々で、両方の弾を保持できる', () => {
+    const initial = createStraightBenchState();
+    const cpuReady = stepStraightBench(initial, CPU_REACTION_TICKS);
+    const playerFired = firePlayerShot(cpuReady, { x: 180, y: 320 });
+
+    expect(playerFired.bullets.filter((bullet) => bullet.owner === 'cpu')).toHaveLength(1);
+    expect(playerFired.bullets.filter((bullet) => bullet.owner === 'player')).toHaveLength(1);
+    expect(fireCpuShot(playerFired, { x: 180, y: 320 })).toBe(playerFired);
+  });
+
+  it('ゴール停止、延長予告、結果、停止中はCPUが後から発射しない', () => {
+    const initial = createStraightBenchState();
+    const noCpuShot = (phase: 'GOAL_PAUSE' | 'OVERTIME_NOTICE' | 'RESULT' | 'SUSPENDED') =>
+      ({
+        ...initial,
+        match: { ...initial.match, phase },
+        cpuCooldownTicks: 0,
+        cpuThinkTicks: 0,
+        goalPauseTicks: phase === 'GOAL_PAUSE' ? 10 : 0,
+        overtimeNoticeTicks: phase === 'OVERTIME_NOTICE' ? 10 : 0,
+      }) as const;
+
+    for (const phase of ['GOAL_PAUSE', 'OVERTIME_NOTICE', 'RESULT', 'SUSPENDED'] as const) {
+      const state = noCpuShot(phase);
+      const stepped = stepStraightBench(state, 1);
+
+      expect(stepped.bullets).toHaveLength(0);
+      expect(stepped.nextBulletId).toBe(state.nextBulletId);
+    }
   });
 });
