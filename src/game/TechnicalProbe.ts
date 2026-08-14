@@ -183,10 +183,58 @@ class TechnicalProbeScene extends Phaser.Scene {
     }
 
     for (const bullet of this.state.bullets) {
-      graphics.fillStyle(this.playerColor, 1);
-      graphics.fillCircle(bullet.position.x, bullet.position.y, BULLET_RADIUS);
+      const color = bullet.owner === 'cpu' ? this.cpuColor : this.playerColor;
+      graphics.fillStyle(color, 1);
+      if (bullet.owner === 'cpu') {
+        graphics.fillTriangle(
+          bullet.position.x,
+          bullet.position.y - BULLET_RADIUS,
+          bullet.position.x + BULLET_RADIUS,
+          bullet.position.y,
+          bullet.position.x,
+          bullet.position.y + BULLET_RADIUS,
+        );
+        graphics.fillTriangle(
+          bullet.position.x,
+          bullet.position.y - BULLET_RADIUS,
+          bullet.position.x - BULLET_RADIUS,
+          bullet.position.y,
+          bullet.position.x,
+          bullet.position.y + BULLET_RADIUS,
+        );
+      } else {
+        graphics.fillCircle(bullet.position.x, bullet.position.y, BULLET_RADIUS);
+      }
       graphics.lineStyle(2, 0xf4fafc, 0.9);
-      graphics.strokeCircle(bullet.position.x, bullet.position.y, BULLET_RADIUS + 2);
+      if (bullet.owner === 'cpu') {
+        const outlineRadius = BULLET_RADIUS + 2;
+        graphics.lineBetween(
+          bullet.position.x,
+          bullet.position.y - outlineRadius,
+          bullet.position.x + outlineRadius,
+          bullet.position.y,
+        );
+        graphics.lineBetween(
+          bullet.position.x + outlineRadius,
+          bullet.position.y,
+          bullet.position.x,
+          bullet.position.y + outlineRadius,
+        );
+        graphics.lineBetween(
+          bullet.position.x,
+          bullet.position.y + outlineRadius,
+          bullet.position.x - outlineRadius,
+          bullet.position.y,
+        );
+        graphics.lineBetween(
+          bullet.position.x - outlineRadius,
+          bullet.position.y,
+          bullet.position.x,
+          bullet.position.y - outlineRadius,
+        );
+      } else {
+        graphics.strokeCircle(bullet.position.x, bullet.position.y, BULLET_RADIUS + 2);
+      }
     }
 
     for (const puck of this.state.pucks) {
@@ -254,8 +302,13 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.fillRect(position.x - 18, position.y - 18, 36, 36);
       graphics.strokeRect(position.x - 18, position.y - 18, 36, 36);
     }
-    const chargeRatio =
-      this.state.cooldownTicks === 0 ? 1 : 1 - this.state.cooldownTicks / SHOT_COOLDOWN_TICKS;
+    const cooldownTicks = player ? this.state.cooldownTicks : this.state.cpuCooldownTicks;
+    const thinking = !player && this.state.cpuThinkTicks > 0;
+    const chargeRatio = thinking
+      ? 0.25
+      : cooldownTicks === 0
+        ? 1
+        : 1 - cooldownTicks / SHOT_COOLDOWN_TICKS;
     graphics.lineStyle(3, 0xf4fafc, 0.75);
     graphics.strokeCircle(position.x, position.y, 26 * Math.max(0.25, chargeRatio));
   }
