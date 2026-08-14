@@ -4,22 +4,72 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』" />
-    <title>ホケット | P1ストレート・ベンチ試作</title>
+    <title>ホケット | P2 基本導線試作</title>
   </head>
   <body>
     <main id="app" aria-labelledby="page-title">
       <section class="shell">
-        <p class="eyebrow">P1 ストレート・ベンチ試作</p>
+        <p class="eyebrow">P2 基本導線試作</p>
         <h1 id="page-title">ホケット</h1>
-        <p class="lead">下から弾を撃ち、パックを上のゴールへ動かします。</p>
-        <div class="status-panel" aria-live="polite">
-          <strong>いま遊べる範囲</strong>
-          <span>弾・パック・ゴール・得点・90秒の固定更新・両砲台の状態表示</span>
-        </div>
-        <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
-        <p class="caption">
-          P1の最小試作です。盤面を触って狙い、指を離して発射します。CPUも同じ弾速・待ち時間・命中規則で自動射撃します。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。難易度調整、複数盤面、音は次の工程です。
-        </p>
+        <p class="lead">弾でパックを動かし、相手ゴールを狙う縦画面のブラウザゲームです。</p>
+
+        <section id="home-screen" class="flow-panel" aria-labelledby="home-title">
+          <p class="section-kicker">まずは1分で遊べます</p>
+          <h2 id="home-title">弾でパックを動かす</h2>
+          <p class="flow-copy">下から弾を撃ち、白いパックを上の相手ゴールへ入れます。</p>
+          <div class="status-panel" aria-live="polite">
+            <strong>いま遊べる範囲</strong>
+            <span>弾・パック・ゴール・得点・90秒の固定更新・両砲台の状態表示</span>
+          </div>
+          <div class="flow-actions">
+            <button id="play-button" class="primary-action" type="button">すぐ遊ぶ</button>
+            <button id="tutorial-button" class="secondary-action" type="button">説明を見る</button>
+          </div>
+        </section>
+
+        <section
+          id="tutorial-screen"
+          class="flow-panel"
+          aria-labelledby="tutorial-title"
+          aria-describedby="tutorial-body"
+          hidden
+        >
+          <p id="tutorial-step-label" class="section-kicker">基本説明 1/3</p>
+          <h2 id="tutorial-title">1. 方向を決める</h2>
+          <div class="tutorial-board" aria-hidden="true">
+            <span class="tutorial-goal">相手ゴール</span>
+            <span class="tutorial-puck"></span>
+            <span class="tutorial-shot"></span>
+            <span class="tutorial-turret">自分</span>
+          </div>
+          <p id="tutorial-body" class="flow-copy">
+            盤面の下から白いパックへ向けて、画面を触って狙います。
+          </p>
+          <div class="flow-actions">
+            <button id="tutorial-next" class="primary-action" type="button">次へ</button>
+            <button id="tutorial-skip" class="secondary-action" type="button">
+              説明を飛ばして遊ぶ
+            </button>
+          </div>
+        </section>
+
+        <section id="game-screen" class="game-panel" aria-labelledby="game-title" hidden>
+          <div class="game-header">
+            <div>
+              <p class="section-kicker">ストレート・ベンチ</p>
+              <h2 id="game-title">試合</h2>
+            </div>
+            <button id="home-button" class="home-button" type="button">ホームへ</button>
+          </div>
+          <div class="status-panel" aria-live="polite">
+            <strong>操作</strong>
+            <span>盤面を触って狙い、指を離して発射します。結果からは同じ盤面を再戦できます。</span>
+          </div>
+          <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
+          <p class="caption">
+            P2の基本導線試作です。CPUも同じ弾速・待ち時間・命中規則で自動射撃します。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。難易度調整、複数盤面、音は次の工程です。
+          </p>
+        </section>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
