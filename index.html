@@ -4,20 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』" />
-    <title>ホケット | P0技術試作</title>
+    <title>ホケット | P1ストレート・ベンチ試作</title>
   </head>
   <body>
     <main id="app" aria-labelledby="page-title">
       <section class="shell">
-        <p class="eyebrow">P0 技術試作</p>
+        <p class="eyebrow">P1 ストレート・ベンチ試作</p>
         <h1 id="page-title">ホケット</h1>
         <p class="lead">下から弾を撃ち、パックを上のゴールへ動かします。</p>
         <div class="status-panel" aria-live="polite">
-          <strong>試作の確認項目</strong>
-          <span>縦画面・座標・Canvas描画・安全な余白</span>
+          <strong>いま遊べる範囲</strong>
+          <span>弾・パック・ゴール・得点・90秒の固定更新</span>
         </div>
         <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
-        <p class="caption">これはP0の技術試作です。得点や対戦はまだ実装していません。</p>
+        <p class="caption">
+          P1の最小試作です。盤面を触って狙い、指を離して発射します。CPUの自動射撃、複数盤面、音は次の工程です。
+        </p>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
