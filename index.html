@@ -22,7 +22,7 @@
             <span>弾・パック・ゴール・得点・90秒の固定更新・両砲台の状態表示</span>
           </div>
           <div class="flow-actions">
-            <button id="play-button" class="primary-action" type="button">すぐ遊ぶ</button>
+            <button id="play-button" class="primary-action" type="button">遊ぶ</button>
             <button id="tutorial-button" class="secondary-action" type="button">説明を見る</button>
           </div>
         </section>
@@ -50,6 +50,66 @@
             <button id="tutorial-skip" class="secondary-action" type="button">
               説明を飛ばして遊ぶ
             </button>
+          </div>
+        </section>
+
+        <section id="selection-screen" class="flow-panel" aria-labelledby="selection-title" hidden>
+          <p class="section-kicker">試合条件</p>
+          <h2 id="selection-title">盤面とCPUの強さを選ぶ</h2>
+          <p class="flow-copy">今すぐ遊べる条件には「開始できます」と表示しています。</p>
+
+          <fieldset class="selection-group">
+            <legend>盤面</legend>
+            <div class="selection-grid">
+              <button
+                id="board-straight"
+                class="selection-card is-selected"
+                type="button"
+                aria-pressed="true"
+              >
+                <strong>ストレート・ベンチ</strong>
+                <span>障害物なし。1個のパックで基本を遊びます。</span>
+                <small>開始できます</small>
+              </button>
+              <button id="board-twin" class="selection-card" type="button" disabled>
+                <strong>ツイン・ブロック</strong>
+                <span>中央のブロックで横から狙う盤面。</span>
+                <small>次の工程で解放</small>
+              </button>
+              <button id="board-ricochet" class="selection-card" type="button" disabled>
+                <strong>リフレクト・レーン</strong>
+                <span>反射板で軌道を変える盤面。</span>
+                <small>次の工程で解放</small>
+              </button>
+            </div>
+          </fieldset>
+
+          <fieldset class="selection-group">
+            <legend>CPUの強さ</legend>
+            <div class="selection-grid selection-grid-compact">
+              <button
+                id="difficulty-practice"
+                class="selection-card is-selected"
+                type="button"
+                aria-pressed="true"
+              >
+                <strong>れんしゅう</strong>
+                <span>現在の試作。CPUの反応を確認できます。</span>
+                <small>開始できます</small>
+              </button>
+              <button id="difficulty-normal" class="selection-card" type="button" disabled>
+                <strong>ふつう</strong>
+                <span>先読みを含むCPU。調整後に解放します。</span>
+                <small>次の工程で解放</small>
+              </button>
+            </div>
+          </fieldset>
+
+          <div class="flow-actions">
+            <button id="selection-start" class="primary-action" type="button">
+              この条件で始める
+            </button>
+            <button id="selection-back" class="secondary-action" type="button">ホームへ戻る</button>
           </div>
         </section>
 
