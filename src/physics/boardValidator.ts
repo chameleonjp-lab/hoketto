@@ -1,6 +1,13 @@
-import type { BoardDefinition, BoardValidationResult, Circle, Point } from '../domain/types';
+import type {
+  BoardDefinition,
+  BoardValidationResult,
+  Circle,
+  Point,
+  Segment,
+} from '../domain/types';
 import {
   circleOverlapsAabb,
+  circleOverlapsSegment,
   circlesOverlap,
   distanceSquared,
   isFinitePoint,
@@ -12,6 +19,10 @@ const DEFAULT_MIN_CANDIDATE_DISTANCE = 38;
 
 function isFiniteCircle(circle: Circle): boolean {
   return isFinitePoint(circle.center) && Number.isFinite(circle.radius) && circle.radius > 0;
+}
+
+function isFiniteSegment(segment: Segment): boolean {
+  return isFinitePoint(segment.start) && isFinitePoint(segment.end);
 }
 
 function pointsMatch(a: Point, b: Point, tolerance: number): boolean {
@@ -56,6 +67,12 @@ export function validateBoard(
     }
   }
 
+  for (const segment of board.staticSegments) {
+    if (!isFiniteSegment(segment)) {
+      errors.push('静止線分に不正な値があります');
+    }
+  }
+
   for (const puck of board.initialPucks) {
     if (!isFiniteCircle(puck)) {
       errors.push('初期パックに不正な値があります');
@@ -74,6 +91,9 @@ export function validateBoard(
     }
     if (board.staticCircles.some((circle) => circlesOverlap(puck, circle))) {
       errors.push('初期パックが静止円と重なっています');
+    }
+    if (board.staticSegments.some((segment) => circleOverlapsSegment(puck, segment))) {
+      errors.push('初期パックが静止線分と重なっています');
     }
   }
 
@@ -136,6 +156,9 @@ export function validateBoard(
     }
     if (board.staticCircles.some((circle) => circlesOverlap(core, circle))) {
       errors.push('高出力コア候補が静止円と重なっています');
+    }
+    if (board.staticSegments.some((segment) => circleOverlapsSegment(core, segment))) {
+      errors.push('高出力コア候補が静止線分と重なっています');
     }
   }
 
