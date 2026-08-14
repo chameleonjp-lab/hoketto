@@ -140,6 +140,19 @@ describe('straight bench simulation', () => {
     expect(scored.goalResumePhase).toBe('OVERTIME_NOTICE');
   });
 
+  it('延長中も通常と同じ発射待ち規則で撃てる', () => {
+    const initial = createStraightBenchState();
+    const overtime = {
+      ...initial,
+      match: { ...initial.match, phase: 'OVERTIME' as const, ticksRemaining: 15 * 120 },
+    };
+
+    const fired = firePlayerShot(overtime, { x: 180, y: 320 });
+
+    expect(fired.bullets).toHaveLength(1);
+    expect(fired.cooldownTicks).toBe(SHOT_COOLDOWN_TICKS);
+  });
+
   it('有限でない照準は弾を作らない', () => {
     const state = createStraightBenchState();
 

@@ -4,6 +4,7 @@ import { PointerInputController, type PointerInputEvent } from './pointerInput';
 import {
   BULLET_RADIUS,
   FIXED_HZ,
+  SHOT_COOLDOWN_TICKS,
   STRAIGHT_BENCH_HEIGHT,
   STRAIGHT_BENCH_WIDTH,
   createStraightBenchState,
@@ -94,7 +95,10 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private canAim(): boolean {
-    return this.state.match.phase === 'PLAYING' && this.state.cooldownTicks === 0;
+    return (
+      (this.state.match.phase === 'PLAYING' || this.state.match.phase === 'OVERTIME') &&
+      this.state.cooldownTicks === 0
+    );
   }
 
   private pointFromPointer(pointer: Phaser.Input.Pointer): Point {
@@ -213,7 +217,10 @@ class TechnicalProbeScene extends Phaser.Scene {
             : 'CPU WIN';
       notice = `${result}\nタップで同じ盤面をもう一度`;
     }
-    if (this.inputController.getState().phase === 'CHARGING' && phase === 'PLAYING') {
+    if (
+      this.inputController.getState().phase === 'CHARGING' &&
+      (phase === 'PLAYING' || phase === 'OVERTIME')
+    ) {
       notice = '充電中';
     }
     if (this.canAim()) notice = '撃てる：盤面を触って狙う';
@@ -247,7 +254,8 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.fillRect(position.x - 18, position.y - 18, 36, 36);
       graphics.strokeRect(position.x - 18, position.y - 18, 36, 36);
     }
-    const chargeRatio = this.state.cooldownTicks === 0 ? 1 : 1 - this.state.cooldownTicks / 108;
+    const chargeRatio =
+      this.state.cooldownTicks === 0 ? 1 : 1 - this.state.cooldownTicks / SHOT_COOLDOWN_TICKS;
     graphics.lineStyle(3, 0xf4fafc, 0.75);
     graphics.strokeCircle(position.x, position.y, 26 * Math.max(0.25, chargeRatio));
   }
