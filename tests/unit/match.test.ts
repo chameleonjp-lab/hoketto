@@ -4,8 +4,12 @@ import {
   OVERTIME_SECONDS,
   TICKS_PER_SECOND,
   advanceClock,
+  advanceResumeCountdown,
   applyGoals,
+  beginResume,
   createMatchState,
+  invalidateMatch,
+  suspendMatch,
 } from '../../src/domain/match';
 
 describe('match state', () => {
@@ -38,5 +42,27 @@ describe('match state', () => {
     const next = advanceClock(state, OVERTIME_SECONDS * TICKS_PER_SECOND);
 
     expect(next.phase).toBe('RESULT');
+  });
+
+  it('中断中は元の状態を保存し、明示的な再開操作後に3秒数える', () => {
+    const suspended = suspendMatch(createMatchState(1234), 'hidden');
+    const countdown = beginResume(suspended);
+    const resumed = advanceResumeCountdown(countdown, 3 * TICKS_PER_SECOND);
+
+    expect(suspended.phase).toBe('SUSPENDED');
+    expect(suspended.resumeTarget).toBe('PLAYING');
+    expect(countdown.resumeCountdownTicks).toBe(3 * TICKS_PER_SECOND);
+    expect(resumed.phase).toBe('PLAYING');
+    expect(resumed.suspensionReason).toBeUndefined();
+  });
+
+  it('復元不能はINVALIDへ移り、通常の結果にしない', () => {
+    const invalid = invalidateMatch(
+      suspendMatch(createMatchState(1234), 'render-loss'),
+      'restore-failed',
+    );
+
+    expect(invalid.phase).toBe('INVALID');
+    expect(invalid.invalidReason).toBe('restore-failed');
   });
 });

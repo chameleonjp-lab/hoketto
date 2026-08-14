@@ -29,17 +29,23 @@ export function pointToSegmentDistanceSquared(point: Point, segment: Segment): n
   });
 }
 
+export function pointToAabbDistanceSquared(point: Point, box: Aabb): number {
+  const dx = Math.max(box.minX - point.x, 0, point.x - box.maxX);
+  const dy = Math.max(box.minY - point.y, 0, point.y - box.maxY);
+  return dx * dx + dy * dy;
+}
+
 export function circlesOverlap(a: Circle, b: Circle): boolean {
   const combinedRadius = a.radius + b.radius;
   return distanceSquared(a.center, b.center) < combinedRadius * combinedRadius;
 }
 
 export function circleOverlapsAabb(circle: Circle, box: Aabb): boolean {
-  const nearestX = Math.max(box.minX, Math.min(circle.center.x, box.maxX));
-  const nearestY = Math.max(box.minY, Math.min(circle.center.y, box.maxY));
-  return (
-    distanceSquared(circle.center, { x: nearestX, y: nearestY }) < circle.radius * circle.radius
-  );
+  return pointToAabbDistanceSquared(circle.center, box) < circle.radius * circle.radius;
+}
+
+export function circleOverlapsSegment(circle: Circle, segment: Segment): boolean {
+  return pointToSegmentDistanceSquared(circle.center, segment) < circle.radius * circle.radius;
 }
 
 export function reflectVector(vector: Point, normal: Point): Point {
@@ -90,6 +96,119 @@ export function sweptCircleAgainstCircle(
       y: start.y + dy * time,
     },
   };
+}
+
+function earliestHit(hits: readonly (SweepHit | null)[]): SweepHit | null {
+  let earliest: SweepHit | null = null;
+  for (const hit of hits) {
+    if (hit && (earliest === null || hit.time < earliest.time)) {
+      earliest = hit;
+    }
+  }
+  return earliest;
+}
+
+export function sweptCircleAgainstSegment(
+  start: Point,
+  end: Point,
+  movingRadius: number,
+  segment: Segment,
+): SweepHit | null {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const segmentDx = segment.end.x - segment.start.x;
+  const segmentDy = segment.end.y - segment.start.y;
+  const segmentLength = Math.hypot(segmentDx, segmentDy);
+
+  if (pointToSegmentDistanceSquared(start, segment) <= movingRadius * movingRadius) {
+    return { time: 0, point: start };
+  }
+
+  if (segmentLength === 0) {
+    return sweptCircleAgainstCircle(start, end, movingRadius, {
+      center: segment.start,
+      radius: 0,
+    });
+  }
+
+  const capHits = [
+    sweptCircleAgainstCircle(start, end, movingRadius, {
+      center: segment.start,
+      radius: 0,
+    }),
+    sweptCircleAgainstCircle(start, end, movingRadius, {
+      center: segment.end,
+      radius: 0,
+    }),
+  ];
+
+  const ux = segmentDx / segmentLength;
+  const uy = segmentDy / segmentLength;
+  const nx = -uy;
+  const ny = ux;
+  const startOffsetX = start.x - segment.start.x;
+  const startOffsetY = start.y - segment.start.y;
+  const signedDistance = startOffsetX * nx + startOffsetY * ny;
+  const normalVelocity = dx * nx + dy * ny;
+  const stripHits: SweepHit[] = [];
+
+  if (Math.abs(normalVelocity) > Number.EPSILON) {
+    for (const boundary of [-movingRadius, movingRadius]) {
+      const time = (boundary - signedDistance) / normalVelocity;
+      if (time < 0 || time > 1) continue;
+      const hitX = start.x + dx * time;
+      const hitY = start.y + dy * time;
+      const along = (hitX - segment.start.x) * ux + (hitY - segment.start.y) * uy;
+      if (along >= 0 && along <= segmentLength) {
+        stripHits.push({ time, point: { x: hitX, y: hitY } });
+      }
+    }
+  }
+
+  return earliestHit([...capHits, ...stripHits]);
+}
+
+export function sweptCircleAgainstAabb(
+  start: Point,
+  end: Point,
+  movingRadius: number,
+  box: Aabb,
+): SweepHit | null {
+  const startCircle: Circle = { center: start, radius: movingRadius };
+  if (circleOverlapsAabb(startCircle, box)) {
+    return { time: 0, point: start };
+  }
+
+  const top: Segment = {
+    start: { x: box.minX, y: box.minY },
+    end: { x: box.maxX, y: box.minY },
+  };
+  const right: Segment = {
+    start: { x: box.maxX, y: box.minY },
+    end: { x: box.maxX, y: box.maxY },
+  };
+  const bottom: Segment = {
+    start: { x: box.maxX, y: box.maxY },
+    end: { x: box.minX, y: box.maxY },
+  };
+  const left: Segment = {
+    start: { x: box.minX, y: box.maxY },
+    end: { x: box.minX, y: box.minY },
+  };
+
+  return earliestHit([
+    sweptCircleAgainstSegment(start, end, movingRadius, top),
+    sweptCircleAgainstSegment(start, end, movingRadius, right),
+    sweptCircleAgainstSegment(start, end, movingRadius, bottom),
+    sweptCircleAgainstSegment(start, end, movingRadius, left),
+  ]);
+}
+
+export function clampVectorMagnitude(vector: Point, maximum: number): Point {
+  const magnitude = Math.hypot(vector.x, vector.y);
+  if (magnitude === 0 || magnitude <= maximum) return vector;
+  const scale = maximum / magnitude;
+  return { x: vector.x * scale, y: vector.y * scale };
 }
 
 export function rotatePoint180(point: Point, width: number, height: number): Point {

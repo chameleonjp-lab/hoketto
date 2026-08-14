@@ -14,6 +14,10 @@ export type MatchPhase =
   | 'SUSPENDED'
   | 'INVALID';
 
+export type ActiveMatchPhase = Exclude<MatchPhase, 'SUSPENDED' | 'INVALID'>;
+
+export type SuspensionReason = 'manual' | 'hidden' | 'orientation' | 'resize' | 'render-loss';
+
 export interface MatchState {
   readonly phase: MatchPhase;
   readonly seed: number;
@@ -22,6 +26,10 @@ export interface MatchState {
   readonly playerScore: number;
   readonly cpuScore: number;
   readonly lastGoalPoints: number;
+  readonly suspensionReason?: SuspensionReason;
+  readonly resumeTarget?: ActiveMatchPhase;
+  readonly resumeCountdownTicks: number;
+  readonly invalidReason?: string;
 }
 
 export interface GoalEvent {
@@ -41,6 +49,59 @@ export function createMatchState(seed: number): MatchState {
     playerScore: 0,
     cpuScore: 0,
     lastGoalPoints: 0,
+    resumeCountdownTicks: 0,
+  };
+}
+
+export function suspendMatch(state: MatchState, reason: SuspensionReason): MatchState {
+  if (state.phase === 'RESULT' || state.phase === 'INVALID' || state.phase === 'SUSPENDED') {
+    return state;
+  }
+  return {
+    ...state,
+    phase: 'SUSPENDED',
+    suspensionReason: reason,
+    resumeTarget: state.phase,
+    resumeCountdownTicks: 0,
+  };
+}
+
+export function beginResume(state: MatchState): MatchState {
+  if (state.phase !== 'SUSPENDED' || !state.resumeTarget) return state;
+  return {
+    ...state,
+    phase: 'COUNTDOWN',
+    resumeCountdownTicks: 3 * TICKS_PER_SECOND,
+  };
+}
+
+export function advanceResumeCountdown(state: MatchState, ticks: number): MatchState {
+  if (state.phase !== 'COUNTDOWN' || !state.resumeTarget) return state;
+  if (!Number.isSafeInteger(ticks) || ticks < 0) {
+    throw new Error('再開カウントの固定更新数は0以上の安全な整数で指定してください');
+  }
+  const remaining = Math.max(0, state.resumeCountdownTicks - ticks);
+  if (remaining > 0) {
+    return { ...state, resumeCountdownTicks: remaining };
+  }
+  return {
+    ...state,
+    phase: state.resumeTarget,
+    resumeTarget: undefined,
+    suspensionReason: undefined,
+    resumeCountdownTicks: 0,
+  };
+}
+
+export function invalidateMatch(state: MatchState, reason: string): MatchState {
+  if (state.phase === 'RESULT' || state.phase === 'INVALID') return state;
+  return {
+    ...state,
+    phase: 'INVALID',
+    invalidReason: reason,
+    resumeTarget: undefined,
+    suspensionReason: undefined,
+    resumeCountdownTicks: 0,
   };
 }
 
