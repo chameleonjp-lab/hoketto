@@ -4,8 +4,11 @@ import {
   GOAL_PAUSE_TICKS,
   SHOT_COOLDOWN_TICKS,
   createStraightBenchState,
+  createStraightBenchRematch,
   fireCpuShot,
   firePlayerShot,
+  getCpuTurretReadiness,
+  getPlayerTurretReadiness,
   stepStraightBench,
 } from '../../src/game/straightBench';
 
@@ -237,5 +240,37 @@ describe('straight bench simulation', () => {
     expect(result.match.phase).toBe('RESULT');
     expect(result.bullets).toHaveLength(0);
     expect(result.nextBulletId).toBe(lastTick.nextBulletId);
+  });
+
+  it('両砲台の発射状態は、待ち時間と試合状態から一意に読める', () => {
+    const initial = createStraightBenchState();
+    const playerCharging = firePlayerShot(initial, { x: 180, y: 320 });
+    const cpuThinking = initial;
+    const cpuCharging = stepStraightBench(cpuThinking, CPU_REACTION_TICKS);
+    const result = {
+      ...initial,
+      match: { ...initial.match, phase: 'RESULT' as const },
+    };
+
+    expect(getPlayerTurretReadiness(initial)).toBe('ready');
+    expect(getPlayerTurretReadiness(playerCharging)).toBe('charging');
+    expect(getCpuTurretReadiness(cpuThinking)).toBe('thinking');
+    expect(getCpuTurretReadiness(cpuCharging)).toBe('charging');
+    expect(getPlayerTurretReadiness(result)).toBe('stopped');
+    expect(getCpuTurretReadiness(result)).toBe('stopped');
+  });
+
+  it('結果からの再戦は同じ盤面の新しい種を使い、結果前の状態は変えない', () => {
+    const initial = createStraightBenchState(20260814);
+    const beforeResult = createStraightBenchRematch(initial);
+    const result = { ...initial, match: { ...initial.match, phase: 'RESULT' as const } };
+    const rematch = createStraightBenchRematch(result);
+
+    expect(beforeResult).toBe(initial);
+    expect(rematch.match.seed).toBe(initial.match.seed + 1);
+    expect(rematch.match.phase).toBe('PLAYING');
+    expect(rematch.match.playerScore).toBe(0);
+    expect(rematch.match.cpuScore).toBe(0);
+    expect(rematch.pucks[0]?.position).toEqual({ x: 180, y: 320 });
   });
 });

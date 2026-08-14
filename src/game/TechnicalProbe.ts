@@ -8,11 +8,15 @@ import {
   STRAIGHT_BENCH_HEIGHT,
   STRAIGHT_BENCH_WIDTH,
   createStraightBenchState,
+  createStraightBenchRematch,
   firePlayerShot,
   getCpuTurret,
+  getCpuTurretReadiness,
   getPlayerTurret,
+  getPlayerTurretReadiness,
   secondsRemaining,
   stepStraightBench,
+  type TurretReadiness,
   type StraightBenchState,
 } from './straightBench';
 
@@ -28,6 +32,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   private readonly lineColor = 0xc8d1e5;
   private graphics!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
+  private statusText!: Phaser.GameObjects.Text;
   private noticeText!: Phaser.GameObjects.Text;
   private readonly inputController = new PointerInputController({
     board: {
@@ -54,6 +59,11 @@ class TechnicalProbeScene extends Phaser.Scene {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '14px',
       fontStyle: 'bold',
+    });
+    this.statusText = this.add.text(0, 0, '', {
+      color: '#c8d1e5',
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: '11px',
     });
     this.noticeText = this.add.text(WIDTH / 2, HEIGHT / 2, '', {
       color: '#f4fafc',
@@ -107,7 +117,7 @@ class TechnicalProbeScene extends Phaser.Scene {
 
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
     if (this.state.match.phase === 'RESULT') {
-      this.state = createStraightBenchState(this.state.match.seed + 1);
+      this.state = createStraightBenchRematch(this.state);
       this.inputController.setCharging(false);
       this.aimPoint = null;
       return;
@@ -250,6 +260,10 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.hudText.setText(
       `相手 ◇ ${this.state.match.cpuScore}　｜　${seconds}秒　｜　自分 ○ ${this.state.match.playerScore}`,
     );
+    this.statusText.setPosition(BOARD_MARGIN + 8, 20);
+    this.statusText.setText(
+      `相手: ${readinessLabel(getCpuTurretReadiness(this.state))}　｜　自分: ${readinessLabel(getPlayerTurretReadiness(this.state))}`,
+    );
 
     const phase = this.state.match.phase;
     let notice = '';
@@ -302,16 +316,29 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.fillRect(position.x - 18, position.y - 18, 36, 36);
       graphics.strokeRect(position.x - 18, position.y - 18, 36, 36);
     }
+    const readiness = player
+      ? getPlayerTurretReadiness(this.state)
+      : getCpuTurretReadiness(this.state);
     const cooldownTicks = player ? this.state.cooldownTicks : this.state.cpuCooldownTicks;
-    const thinking = !player && this.state.cpuThinkTicks > 0;
-    const chargeRatio = thinking
-      ? 0.25
-      : cooldownTicks === 0
-        ? 1
-        : 1 - cooldownTicks / SHOT_COOLDOWN_TICKS;
+    const thinking = readiness === 'thinking';
+    const chargeRatio =
+      readiness === 'stopped'
+        ? 0.25
+        : thinking
+          ? 0.25
+          : cooldownTicks === 0
+            ? 1
+            : 1 - cooldownTicks / SHOT_COOLDOWN_TICKS;
     graphics.lineStyle(3, 0xf4fafc, 0.75);
     graphics.strokeCircle(position.x, position.y, 26 * Math.max(0.25, chargeRatio));
   }
+}
+
+function readinessLabel(readiness: TurretReadiness): string {
+  if (readiness === 'ready') return '撃てる';
+  if (readiness === 'thinking') return '観測中';
+  if (readiness === 'charging') return '充電中';
+  return '停止';
 }
 
 export function mountTechnicalProbe(parent: HTMLElement): Phaser.Game {
