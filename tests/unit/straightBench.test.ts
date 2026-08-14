@@ -166,6 +166,7 @@ describe('straight bench simulation', () => {
     const initial = createStraightBenchState();
 
     expect(initial.cpuThinkTicks).toBe(CPU_REACTION_TICKS);
+    expect(fireCpuShot(initial, { x: 180, y: 320 })).toBe(initial);
     const afterReaction = stepStraightBench(initial, CPU_REACTION_TICKS);
     const cpuBullets = afterReaction.bullets.filter((bullet) => bullet.owner === 'cpu');
 
@@ -220,5 +221,21 @@ describe('straight bench simulation', () => {
       expect(stepped.bullets).toHaveLength(0);
       expect(stepped.nextBulletId).toBe(state.nextBulletId);
     }
+  });
+
+  it('時計が尽きる更新ではCPUを新規発射せず、結果画面へ弾を持ち越さない', () => {
+    const initial = createStraightBenchState();
+    const lastTick = {
+      ...initial,
+      match: { ...initial.match, playerScore: 1, ticksRemaining: 1 },
+      cpuCooldownTicks: 0,
+      cpuThinkTicks: 0,
+    };
+
+    const result = stepStraightBench(lastTick, 1);
+
+    expect(result.match.phase).toBe('RESULT');
+    expect(result.bullets).toHaveLength(0);
+    expect(result.nextBulletId).toBe(lastTick.nextBulletId);
   });
 });

@@ -391,6 +391,7 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
   const cooldownTicks = Math.max(0, state.cooldownTicks - 1);
   const cpuCooldownTicks = Math.max(0, state.cpuCooldownTicks - 1);
   const cpuThinkTicks = Math.max(0, state.cpuThinkTicks - 1);
+  const clockedMatch = advanceClock(state.match, 1);
   const preparedState: StraightBenchState = {
     ...state,
     cooldownTicks,
@@ -398,12 +399,11 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
     cpuThinkTicks,
   };
   const cpuReadyState =
-    cpuCooldownTicks === 0 && cpuThinkTicks === 0
+    isActivePhase(clockedMatch.phase) && cpuCooldownTicks === 0 && cpuThinkTicks === 0
       ? fireCpuShot(preparedState, chooseCpuTarget(preparedState))
       : preparedState;
   const movedBullets = moveBullets(cpuReadyState);
   const movedPucks = movePucks(movedBullets.pucks);
-  const clockedMatch = advanceClock(state.match, 1);
   const movedState: StraightBenchState = {
     ...cpuReadyState,
     match: state.match,
@@ -412,8 +412,9 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
   };
   const scoredState = applyPhysicalGoals(movedState, movedPucks.goals, clockedMatch);
   if (movedPucks.goals.length > 0) return scoredState;
+  if (clockedMatch.phase === 'RESULT') return { ...scoredState, bullets: [] };
   if (clockedMatch.phase === 'OVERTIME_NOTICE') {
-    return { ...scoredState, overtimeNoticeTicks: RESUME_COUNTDOWN_TICKS };
+    return { ...scoredState, bullets: [], overtimeNoticeTicks: RESUME_COUNTDOWN_TICKS };
   }
   return scoredState;
 }
@@ -487,6 +488,7 @@ export function firePlayerShot(state: StraightBenchState, target: Point): Straig
 }
 
 export function fireCpuShot(state: StraightBenchState, target: Point): StraightBenchState {
+  if (state.cpuThinkTicks > 0) return state;
   return fireShot(state, 'cpu', target);
 }
 
