@@ -1,0 +1,106 @@
+:root {
+  color: #f6f8ff;
+  background: #0b1020;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Hiragino Sans',
+    'Yu Gothic',
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+body {
+  background: radial-gradient(circle at 50% 8%, rgb(51 214 194 / 12%), transparent 34rem), #0b1020;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+.shell {
+  width: min(100% - 32px, 760px);
+  margin: 0 auto;
+  padding: max(24px, env(safe-area-inset-top)) 0 max(32px, env(safe-area-inset-bottom));
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #35d6c2;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 10vw, 4rem);
+  line-height: 1;
+}
+
+.lead {
+  max-width: 36rem;
+  margin: 16px 0;
+  color: #c8d1e5;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.status-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  margin: 20px 0 16px;
+  padding: 12px 16px;
+  border: 1px solid #35d6c2;
+  border-radius: 12px;
+  background: #18233a;
+  color: #f6f8ff;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.status-panel span {
+  color: #c8d1e5;
+}
+
+.game-root {
+  width: min(100%, 360px);
+  min-height: 320px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 2px solid #35d6c2;
+  border-radius: 16px;
+  background: #10182a;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 30%);
+  touch-action: none;
+}
+
+.game-root canvas {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.caption {
+  margin: 14px 0 0;
+  color: #c8d1e5;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
