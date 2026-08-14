@@ -8,7 +8,6 @@ import {
   STRAIGHT_BENCH_HEIGHT,
   STRAIGHT_BENCH_WIDTH,
   createStraightBenchState,
-  createStraightBenchRematch,
   firePlayerShot,
   getCpuTurret,
   getCpuTurretReadiness,
@@ -23,6 +22,18 @@ import {
 const WIDTH = STRAIGHT_BENCH_WIDTH;
 const HEIGHT = STRAIGHT_BENCH_HEIGHT;
 const BOARD_MARGIN = 24;
+
+export interface TechnicalProbeResult {
+  readonly playerScore: number;
+  readonly cpuScore: number;
+  readonly seed: number;
+  readonly winner: 'PLAYER' | 'CPU' | 'DRAW';
+}
+
+export interface TechnicalProbeOptions {
+  readonly seed?: number;
+  readonly onResult?: (result: TechnicalProbeResult) => void;
+}
 
 class TechnicalProbeScene extends Phaser.Scene {
   private readonly playerColor = 0x00b8a9;
@@ -44,12 +55,16 @@ class TechnicalProbeScene extends Phaser.Scene {
     viewport: { width: WIDTH, height: HEIGHT },
     exclusionPixels: BOARD_MARGIN,
   });
-  private state: StraightBenchState = createStraightBenchState(20260814);
+  private state: StraightBenchState;
   private aimPoint: Point | null = null;
   private accumulatorSeconds = 0;
+  private resultReported = false;
+  private readonly options: TechnicalProbeOptions;
 
-  public constructor() {
+  public constructor(options: TechnicalProbeOptions = {}) {
     super('technical-probe');
+    this.options = options;
+    this.state = createStraightBenchState(options.seed ?? 20260814);
   }
 
   public create(): void {
@@ -101,7 +116,26 @@ class TechnicalProbeScene extends Phaser.Scene {
     } else if (!this.canAim() && this.inputController.getState().phase === 'READY') {
       this.inputController.setCharging(true);
     }
+    this.reportResultIfNeeded();
     this.render();
+  }
+
+  private reportResultIfNeeded(): void {
+    if (this.resultReported || this.state.match.phase !== 'RESULT') return;
+    this.resultReported = true;
+    const winner =
+      this.state.match.playerScore === this.state.match.cpuScore
+        ? 'DRAW'
+        : this.state.match.playerScore > this.state.match.cpuScore
+          ? 'PLAYER'
+          : 'CPU';
+    const result: TechnicalProbeResult = {
+      playerScore: this.state.match.playerScore,
+      cpuScore: this.state.match.cpuScore,
+      seed: this.state.match.seed,
+      winner,
+    };
+    window.setTimeout(() => this.options.onResult?.(result), 0);
   }
 
   private canAim(): boolean {
@@ -116,12 +150,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
-    if (this.state.match.phase === 'RESULT') {
-      this.state = createStraightBenchRematch(this.state);
-      this.inputController.setCharging(false);
-      this.aimPoint = null;
-      return;
-    }
+    if (this.state.match.phase === 'RESULT') return;
     this.applyInputEvent(
       this.inputController.pointerDown(pointer.id, this.pointFromPointer(pointer)),
     );
@@ -271,13 +300,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (phase === 'OVERTIME_NOTICE') notice = '延長15秒・先に1点';
     if (phase === 'OVERTIME') notice = '延長・先に1点';
     if (phase === 'RESULT') {
-      const result =
-        this.state.match.playerScore === this.state.match.cpuScore
-          ? 'DRAW'
-          : this.state.match.playerScore > this.state.match.cpuScore
-            ? 'PLAYER WIN'
-            : 'CPU WIN';
-      notice = `${result}\nタップで同じ盤面をもう一度`;
+      notice = '結果を表示中';
     }
     if (
       this.inputController.getState().phase === 'CHARGING' &&
@@ -341,14 +364,17 @@ function readinessLabel(readiness: TurretReadiness): string {
   return '停止';
 }
 
-export function mountTechnicalProbe(parent: HTMLElement): Phaser.Game {
+export function mountTechnicalProbe(
+  parent: HTMLElement,
+  options: TechnicalProbeOptions = {},
+): Phaser.Game {
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent,
     width: WIDTH,
     height: HEIGHT,
     backgroundColor: '#07151d',
-    scene: TechnicalProbeScene,
+    scene: new TechnicalProbeScene(options),
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

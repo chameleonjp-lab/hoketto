@@ -49,6 +49,11 @@ button:hover {
   background: #213653;
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 button:focus-visible {
   outline: 3px solid #f5c451;
   outline-offset: 3px;
@@ -116,6 +121,29 @@ h2 {
   color: #c8d1e5;
   font-size: 1.05rem;
   line-height: 1.7;
+}
+
+.result-panel {
+  text-align: center;
+}
+
+.result-panel .flow-copy {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.result-score {
+  margin: 20px 0 0;
+  color: #f6f8ff;
+  font-size: clamp(1.35rem, 6vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.result-panel .flow-actions {
+  max-width: 32rem;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .status-panel {
