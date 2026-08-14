@@ -2,14 +2,20 @@ import './app/styles.css';
 import {
   TUTORIAL_STEP_COUNT,
   TUTORIAL_STEPS,
+  canStartSelection,
+  chooseBoard,
+  chooseDifficulty,
   createAppFlowState,
   nextTutorial,
   openTutorial,
+  openSelection,
   returnHome,
   showResult,
   skipTutorial,
   startRematch,
   startGame,
+  type BoardId,
+  type DifficultyId,
   type AppFlowState,
 } from './app/gameFlow';
 import { mountTechnicalProbe, type TechnicalProbeResult } from './game/TechnicalProbe';
@@ -22,6 +28,7 @@ function requireElement<T extends Element>(selector: string): T {
 
 const homeScreen = requireElement<HTMLElement>('#home-screen');
 const tutorialScreen = requireElement<HTMLElement>('#tutorial-screen');
+const selectionScreen = requireElement<HTMLElement>('#selection-screen');
 const gameScreen = requireElement<HTMLElement>('#game-screen');
 const gameRoot = requireElement<HTMLElement>('#game-root');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
@@ -31,6 +38,13 @@ const playButton = requireElement<HTMLButtonElement>('#play-button');
 const tutorialButton = requireElement<HTMLButtonElement>('#tutorial-button');
 const tutorialNextButton = requireElement<HTMLButtonElement>('#tutorial-next');
 const tutorialSkipButton = requireElement<HTMLButtonElement>('#tutorial-skip');
+const boardStraightButton = requireElement<HTMLButtonElement>('#board-straight');
+const boardTwinButton = requireElement<HTMLButtonElement>('#board-twin');
+const boardRicochetButton = requireElement<HTMLButtonElement>('#board-ricochet');
+const difficultyPracticeButton = requireElement<HTMLButtonElement>('#difficulty-practice');
+const difficultyNormalButton = requireElement<HTMLButtonElement>('#difficulty-normal');
+const selectionStartButton = requireElement<HTMLButtonElement>('#selection-start');
+const selectionBackButton = requireElement<HTMLButtonElement>('#selection-back');
 const homeButton = requireElement<HTMLButtonElement>('#home-button');
 const resultScreen = requireElement<HTMLElement>('#result-screen');
 const resultTitle = requireElement<HTMLElement>('#result-title');
@@ -67,6 +81,7 @@ function armResultButtons(): void {
 function render(): void {
   homeScreen.hidden = flow.screen !== 'HOME';
   tutorialScreen.hidden = flow.screen !== 'TUTORIAL';
+  selectionScreen.hidden = flow.screen !== 'SELECT';
   gameScreen.hidden = flow.screen !== 'GAME';
   resultScreen.hidden = flow.screen !== 'RESULT';
   if (flow.screen !== 'RESULT') resetResultButtons();
@@ -79,6 +94,28 @@ function render(): void {
   tutorialNextButton.textContent =
     flow.tutorialStep === TUTORIAL_STEP_COUNT - 1 ? '試合を始める' : '次へ';
 
+  const selection = flow.selection;
+  const boardButtons: readonly [HTMLButtonElement, BoardId][] = [
+    [boardStraightButton, 'straight-bench'],
+    [boardTwinButton, 'twin-block'],
+    [boardRicochetButton, 'ricochet-lane'],
+  ];
+  for (const [button, board] of boardButtons) {
+    const selected = selection.board === board;
+    button.setAttribute('aria-pressed', String(selected));
+    button.classList.toggle('is-selected', selected);
+  }
+  const difficultyButtons: readonly [HTMLButtonElement, DifficultyId][] = [
+    [difficultyPracticeButton, 'practice'],
+    [difficultyNormalButton, 'normal'],
+  ];
+  for (const [button, difficulty] of difficultyButtons) {
+    const selected = selection.difficulty === difficulty;
+    button.setAttribute('aria-pressed', String(selected));
+    button.classList.toggle('is-selected', selected);
+  }
+  selectionStartButton.disabled = !canStartSelection(selection);
+
   const result = flow.result;
   if (result) {
     resultTitle.textContent =
@@ -88,7 +125,7 @@ function render(): void {
           ? '相手の勝ち'
           : '引き分け';
     resultScore.textContent = `自分 ${result.playerScore}　｜　相手 ${result.cpuScore}`;
-    resultDetail.textContent = '盤面：ストレート・ベンチ';
+    resultDetail.textContent = `盤面：${boardLabel(result.selection.board)}　｜　CPU：${difficultyLabel(result.selection.difficulty)}`;
   } else {
     resultTitle.textContent = '試合結果';
     resultScore.textContent = '';
@@ -108,6 +145,12 @@ function enterGame(seed = nextSeed): void {
   }
 }
 
+function enterSelection(): void {
+  flow = openSelection(flow);
+  render();
+  selectionStartButton.focus();
+}
+
 function disposeGame(): void {
   game?.destroy(true);
   game = null;
@@ -115,14 +158,14 @@ function disposeGame(): void {
 
 function handleGameResult(result: TechnicalProbeResult): void {
   disposeGame();
-  const nextFlow = showResult(flow, result);
+  const nextFlow = showResult(flow, { ...result, selection: flow.selection });
   if (nextFlow === flow) return;
   flow = nextFlow;
   render();
   armResultButtons();
 }
 
-playButton.addEventListener('click', () => enterGame());
+playButton.addEventListener('click', enterSelection);
 
 tutorialButton.addEventListener('click', () => {
   flow = openTutorial(flow);
@@ -132,8 +175,9 @@ tutorialButton.addEventListener('click', () => {
 
 tutorialNextButton.addEventListener('click', () => {
   flow = nextTutorial(flow);
-  if (flow.screen === 'GAME') {
-    enterGame();
+  if (flow.screen === 'SELECT') {
+    render();
+    selectionStartButton.focus();
     return;
   }
   render();
@@ -142,7 +186,46 @@ tutorialNextButton.addEventListener('click', () => {
 
 tutorialSkipButton.addEventListener('click', () => {
   flow = skipTutorial(flow);
+  render();
+  selectionStartButton.focus();
+});
+
+boardStraightButton.addEventListener('click', () => {
+  flow = chooseBoard(flow, 'straight-bench');
+  render();
+  selectionStartButton.focus();
+});
+
+boardTwinButton.addEventListener('click', () => {
+  flow = chooseBoard(flow, 'twin-block');
+  render();
+});
+
+boardRicochetButton.addEventListener('click', () => {
+  flow = chooseBoard(flow, 'ricochet-lane');
+  render();
+});
+
+difficultyPracticeButton.addEventListener('click', () => {
+  flow = chooseDifficulty(flow, 'practice');
+  render();
+  selectionStartButton.focus();
+});
+
+difficultyNormalButton.addEventListener('click', () => {
+  flow = chooseDifficulty(flow, 'normal');
+  render();
+});
+
+selectionStartButton.addEventListener('click', () => {
+  if (!canStartSelection(flow.selection)) return;
   enterGame();
+});
+
+selectionBackButton.addEventListener('click', () => {
+  flow = returnHome();
+  render();
+  playButton.focus();
 });
 
 homeButton.addEventListener('click', () => {
@@ -172,3 +255,13 @@ window.addEventListener('pagehide', () => {
 });
 
 render();
+
+function boardLabel(board: BoardId): string {
+  if (board === 'straight-bench') return 'ストレート・ベンチ';
+  if (board === 'twin-block') return 'ツイン・ブロック';
+  return 'リフレクト・レーン';
+}
+
+function difficultyLabel(difficulty: DifficultyId): string {
+  return difficulty === 'practice' ? 'れんしゅう' : 'ふつう';
+}
