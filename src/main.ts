@@ -2,6 +2,7 @@ import './app/styles.css';
 import {
   TUTORIAL_STEP_COUNT,
   TUTORIAL_STEPS,
+  TUTORIAL_WAIT_MS,
   canStartSelection,
   chooseBoard,
   chooseDifficulty,
@@ -41,6 +42,7 @@ const tutorialTitle = requireElement<HTMLElement>('#tutorial-title');
 const tutorialBody = requireElement<HTMLElement>('#tutorial-body');
 const tutorialFeedback = requireElement<HTMLElement>('#tutorial-feedback');
 const tutorialTarget = requireElement<HTMLButtonElement>('#tutorial-target');
+const tutorialChargeRing = requireElement<HTMLElement>('#tutorial-charge-ring');
 const playButton = requireElement<HTMLButtonElement>('#play-button');
 const tutorialButton = requireElement<HTMLButtonElement>('#tutorial-button');
 const tutorialNextButton = requireElement<HTMLButtonElement>('#tutorial-next');
@@ -66,6 +68,14 @@ let flow: AppFlowState = createAppFlowState();
 let game: ReturnType<typeof mountTechnicalProbe> | null = null;
 let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
+let tutorialWaitTimer: number | null = null;
+
+function clearTutorialWaitTimer(): void {
+  if (tutorialWaitTimer !== null) {
+    window.clearTimeout(tutorialWaitTimer);
+    tutorialWaitTimer = null;
+  }
+}
 
 function resetResultButtons(): void {
   if (resultButtonsTimer !== null) {
@@ -120,11 +130,42 @@ function render(): void {
           : flow.tutorialActionStarted
             ? 'そのまま指を離してください。'
             : 'ボタンを押してから、指を離してください。'
-        : '';
+        : flow.tutorialStep === 2
+          ? flow.tutorialActionCompleted
+            ? '待てました。次の画面へ進みます。'
+            : '充電輪が満ちるまで待ちます。'
+          : '';
   tutorialNextButton.disabled =
-    (flow.tutorialStep === 0 || flow.tutorialStep === 1) && !flow.tutorialActionCompleted;
+    (flow.tutorialStep === 0 || flow.tutorialStep === 1 || flow.tutorialStep === 2) &&
+    !flow.tutorialActionCompleted;
   tutorialNextButton.textContent =
     flow.tutorialStep === TUTORIAL_STEP_COUNT - 1 ? '条件を選ぶ' : '次へ';
+
+  const waitingForTutorialCharge =
+    flow.screen === 'TUTORIAL' &&
+    flow.tutorialStep === 2 &&
+    flow.tutorialActionStarted &&
+    !flow.tutorialActionCompleted;
+  tutorialChargeRing.hidden = !waitingForTutorialCharge;
+  tutorialChargeRing.classList.toggle('is-waiting', waitingForTutorialCharge);
+  if (!waitingForTutorialCharge) {
+    clearTutorialWaitTimer();
+  } else if (tutorialWaitTimer === null) {
+    tutorialWaitTimer = window.setTimeout(() => {
+      tutorialWaitTimer = null;
+      if (
+        flow.screen !== 'TUTORIAL' ||
+        flow.tutorialStep !== 2 ||
+        !flow.tutorialActionStarted ||
+        flow.tutorialActionCompleted
+      ) {
+        return;
+      }
+      flow = completeTutorialAction(flow);
+      render();
+      tutorialNextButton.focus();
+    }, TUTORIAL_WAIT_MS);
+  }
 
   const selection = flow.selection;
   const boardButtons: readonly [HTMLButtonElement, BoardId][] = [
@@ -350,6 +391,7 @@ resultHomeButton.addEventListener('click', () => {
 
 window.addEventListener('pagehide', () => {
   disposeGame();
+  clearTutorialWaitTimer();
   resetResultButtons();
 });
 
