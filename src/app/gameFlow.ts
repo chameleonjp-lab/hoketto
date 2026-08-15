@@ -53,6 +53,8 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 
 export const TUTORIAL_STEP_COUNT = TUTORIAL_STEPS.length;
 
+export const TUTORIAL_WAIT_MS = 900;
+
 export const DEFAULT_GAME_SELECTION: GameSelection = {
   board: 'straight-bench',
   difficulty: 'practice',
@@ -115,29 +117,42 @@ export function completeTutorialAction(state: AppFlowState): AppFlowState {
   if (state.tutorialStep === 0) {
     return { ...state, tutorialActionCompleted: true };
   }
-  if (state.tutorialStep === 1 && state.tutorialActionStarted) {
+  if ((state.tutorialStep === 1 || state.tutorialStep === 2) && state.tutorialActionStarted) {
     return { ...state, tutorialActionStarted: false, tutorialActionCompleted: true };
   }
   return state;
 }
 
 export function cancelTutorialAction(state: AppFlowState): AppFlowState {
-  if (state.screen !== 'TUTORIAL' || state.tutorialStep !== 1) return state;
+  if (state.screen !== 'TUTORIAL' || (state.tutorialStep !== 1 && state.tutorialStep !== 2)) {
+    return state;
+  }
   return { ...state, tutorialActionStarted: false };
 }
 
 export function nextTutorial(state: AppFlowState): AppFlowState {
   if (state.screen !== 'TUTORIAL') return state;
-  if ((state.tutorialStep === 0 || state.tutorialStep === 1) && !state.tutorialActionCompleted) {
+  if (
+    (state.tutorialStep === 0 || state.tutorialStep === 1 || state.tutorialStep === 2) &&
+    !state.tutorialActionCompleted
+  ) {
     return state;
   }
   if (state.tutorialStep >= TUTORIAL_STEP_COUNT - 1) {
-    return { ...state, screen: 'SELECT', tutorialStep: TUTORIAL_STEP_COUNT - 1, result: null };
+    return {
+      ...state,
+      screen: 'SELECT',
+      tutorialStep: TUTORIAL_STEP_COUNT - 1,
+      tutorialActionStarted: false,
+      tutorialActionCompleted: false,
+      result: null,
+    };
   }
+  const nextStep = state.tutorialStep + 1;
   return {
     ...state,
-    tutorialStep: state.tutorialStep + 1,
-    tutorialActionStarted: false,
+    tutorialStep: nextStep,
+    tutorialActionStarted: nextStep === 2,
     tutorialActionCompleted: false,
   };
 }
