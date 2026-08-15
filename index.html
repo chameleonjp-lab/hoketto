@@ -24,6 +24,35 @@
           <div class="flow-actions">
             <button id="play-button" class="primary-action" type="button">遊ぶ</button>
             <button id="tutorial-button" class="secondary-action" type="button">説明を見る</button>
+            <button id="settings-button" class="secondary-action" type="button">設定</button>
+          </div>
+        </section>
+
+        <section id="settings-screen" class="flow-panel" aria-labelledby="settings-title" hidden>
+          <p class="section-kicker">設定</p>
+          <h2 id="settings-title">音と表示</h2>
+          <p class="flow-copy">
+            初期状態は無音です。音を有効にした操作の中で音声処理を開始します。
+          </p>
+          <div class="settings-list">
+            <label class="settings-toggle">
+              <input id="settings-effects" type="checkbox" />
+              <span>
+                <strong>効果音</strong>
+                <small>発射と得点の短い音</small>
+              </span>
+            </label>
+            <label class="settings-toggle">
+              <input id="settings-music" type="checkbox" />
+              <span>
+                <strong>音楽</strong>
+                <small>試合中の小さな音の背景</small>
+              </span>
+            </label>
+          </div>
+          <p id="settings-audio-note" class="settings-note" role="status" aria-live="polite"></p>
+          <div class="flow-actions">
+            <button id="settings-back" class="primary-action" type="button">戻る</button>
           </div>
         </section>
 
@@ -168,7 +197,7 @@
           </div>
           <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
           <p class="caption">
-            P2の基本導線試作です。CPUも同じ弾速・待ち時間・命中規則で自動射撃します。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。難易度調整、複数盤面、音は次の工程です。
+            P2の基本導線試作です。CPUも同じ弾速・待ち時間・命中規則で自動射撃します。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。音は設定画面で個別に有効化できますが、初期状態は無音です。難易度調整と複数盤面は次の工程です。
           </p>
         </section>
 
