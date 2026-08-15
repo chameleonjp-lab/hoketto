@@ -5,6 +5,7 @@ import {
   canStartSelection,
   chooseBoard,
   chooseDifficulty,
+  chooseGameMode,
   createAppFlowState,
   nextTutorial,
   openTutorial,
@@ -16,6 +17,7 @@ import {
   startGame,
   type BoardId,
   type DifficultyId,
+  type GameModeId,
   type AppFlowState,
 } from './app/gameFlow';
 import { mountTechnicalProbe, type TechnicalProbeResult } from './game/TechnicalProbe';
@@ -43,6 +45,8 @@ const boardTwinButton = requireElement<HTMLButtonElement>('#board-twin');
 const boardRicochetButton = requireElement<HTMLButtonElement>('#board-ricochet');
 const difficultyPracticeButton = requireElement<HTMLButtonElement>('#difficulty-practice');
 const difficultyNormalButton = requireElement<HTMLButtonElement>('#difficulty-normal');
+const modeTrialButton = requireElement<HTMLButtonElement>('#mode-trial');
+const modeMatchButton = requireElement<HTMLButtonElement>('#mode-match');
 const selectionStartButton = requireElement<HTMLButtonElement>('#selection-start');
 const selectionBackButton = requireElement<HTMLButtonElement>('#selection-back');
 const homeButton = requireElement<HTMLButtonElement>('#home-button');
@@ -92,7 +96,7 @@ function render(): void {
   tutorialTitle.textContent = step.title;
   tutorialBody.textContent = step.body;
   tutorialNextButton.textContent =
-    flow.tutorialStep === TUTORIAL_STEP_COUNT - 1 ? '試合を始める' : '次へ';
+    flow.tutorialStep === TUTORIAL_STEP_COUNT - 1 ? '条件を選ぶ' : '次へ';
 
   const selection = flow.selection;
   const boardButtons: readonly [HTMLButtonElement, BoardId][] = [
@@ -114,6 +118,15 @@ function render(): void {
     button.setAttribute('aria-pressed', String(selected));
     button.classList.toggle('is-selected', selected);
   }
+  const modeButtons: readonly [HTMLButtonElement, GameModeId][] = [
+    [modeTrialButton, 'trial'],
+    [modeMatchButton, 'match'],
+  ];
+  for (const [button, mode] of modeButtons) {
+    const selected = selection.mode === mode;
+    button.setAttribute('aria-pressed', String(selected));
+    button.classList.toggle('is-selected', selected);
+  }
   selectionStartButton.disabled = !canStartSelection(selection);
 
   const result = flow.result;
@@ -125,7 +138,7 @@ function render(): void {
           ? '相手の勝ち'
           : '引き分け';
     resultScore.textContent = `自分 ${result.playerScore}　｜　相手 ${result.cpuScore}`;
-    resultDetail.textContent = `盤面：${boardLabel(result.selection.board)}　｜　CPU：${difficultyLabel(result.selection.difficulty)}`;
+    resultDetail.textContent = `盤面：${boardLabel(result.selection.board)}　｜　CPU：${difficultyLabel(result.selection.difficulty)}　｜　${modeLabel(result.selection.mode)}`;
   } else {
     resultTitle.textContent = '試合結果';
     resultScore.textContent = '';
@@ -140,6 +153,7 @@ function enterGame(seed = nextSeed): void {
   if (!game) {
     game = mountTechnicalProbe(gameRoot, {
       seed,
+      durationSeconds: flow.selection.mode === 'trial' ? 30 : 90,
       onResult: handleGameResult,
     });
   }
@@ -217,6 +231,18 @@ difficultyNormalButton.addEventListener('click', () => {
   render();
 });
 
+modeTrialButton.addEventListener('click', () => {
+  flow = chooseGameMode(flow, 'trial');
+  render();
+  selectionStartButton.focus();
+});
+
+modeMatchButton.addEventListener('click', () => {
+  flow = chooseGameMode(flow, 'match');
+  render();
+  selectionStartButton.focus();
+});
+
 selectionStartButton.addEventListener('click', () => {
   if (!canStartSelection(flow.selection)) return;
   enterGame();
@@ -264,4 +290,8 @@ function boardLabel(board: BoardId): string {
 
 function difficultyLabel(difficulty: DifficultyId): string {
   return difficulty === 'practice' ? 'れんしゅう' : 'ふつう';
+}
+
+function modeLabel(mode: GameModeId): string {
+  return mode === 'trial' ? '30秒の試し撃ち' : '90秒試合';
 }

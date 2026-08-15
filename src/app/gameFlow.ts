@@ -4,9 +4,12 @@ export type BoardId = 'straight-bench' | 'twin-block' | 'ricochet-lane';
 
 export type DifficultyId = 'practice' | 'normal';
 
+export type GameModeId = 'trial' | 'match';
+
 export interface GameSelection {
   readonly board: BoardId;
   readonly difficulty: DifficultyId;
+  readonly mode: GameModeId;
 }
 
 export type MatchWinner = 'PLAYER' | 'CPU' | 'DRAW';
@@ -51,10 +54,15 @@ export const TUTORIAL_STEP_COUNT = TUTORIAL_STEPS.length;
 export const DEFAULT_GAME_SELECTION: GameSelection = {
   board: 'straight-bench',
   difficulty: 'practice',
+  mode: 'match',
 };
 
 export function canStartSelection(selection: GameSelection): boolean {
-  return selection.board === 'straight-bench' && selection.difficulty === 'practice';
+  return (
+    selection.board === 'straight-bench' &&
+    selection.difficulty === 'practice' &&
+    (selection.mode === 'trial' || selection.mode === 'match')
+  );
 }
 
 export function createAppFlowState(): AppFlowState {
@@ -80,6 +88,10 @@ export function chooseBoard(state: AppFlowState, board: BoardId): AppFlowState {
 
 export function chooseDifficulty(state: AppFlowState, difficulty: DifficultyId): AppFlowState {
   return { ...state, selection: { ...state.selection, difficulty } };
+}
+
+export function chooseGameMode(state: AppFlowState, mode: GameModeId): AppFlowState {
+  return { ...state, selection: { ...state.selection, mode } };
 }
 
 export function nextTutorial(state: AppFlowState): AppFlowState {

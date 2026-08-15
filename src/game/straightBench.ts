@@ -53,6 +53,7 @@ export interface BulletState {
 export type GoalResumePhase = 'PLAYING' | 'OVERTIME' | 'OVERTIME_NOTICE' | 'RESULT';
 
 export interface StraightBenchState {
+  readonly durationSeconds: number;
   readonly match: MatchState;
   readonly pucks: readonly PuckState[];
   readonly bullets: readonly BulletState[];
@@ -431,9 +432,13 @@ function stepOne(state: StraightBenchState): StraightBenchState {
   return stepPlaying(state);
 }
 
-export function createStraightBenchState(seed = 1): StraightBenchState {
+export function createStraightBenchState(
+  seed = 1,
+  durationSeconds = MATCH_SECONDS,
+): StraightBenchState {
   return {
-    match: createMatchState(seed),
+    durationSeconds,
+    match: createMatchState(seed, durationSeconds),
     pucks: [resetPuck(1)],
     bullets: [],
     cooldownTicks: 0,
@@ -507,7 +512,7 @@ export function getCpuTurretReadiness(state: StraightBenchState): TurretReadines
 
 export function createStraightBenchRematch(state: StraightBenchState): StraightBenchState {
   if (state.match.phase !== 'RESULT') return state;
-  return createStraightBenchState(state.match.seed + 1);
+  return createStraightBenchState(state.match.seed + 1, state.durationSeconds);
 }
 
 export function stepStraightBench(state: StraightBenchState, ticks = 1): StraightBenchState {

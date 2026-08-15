@@ -4,6 +4,7 @@ import {
   canStartSelection,
   chooseBoard,
   chooseDifficulty,
+  chooseGameMode,
   createAppFlowState,
   nextTutorial,
   openTutorial,
@@ -21,7 +22,7 @@ describe('application flow', () => {
     expect(state).toEqual({
       screen: 'HOME',
       tutorialStep: 0,
-      selection: { board: 'straight-bench', difficulty: 'practice' },
+      selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
     });
     expect(state.selection).not.toBe(createAppFlowState().selection);
@@ -31,7 +32,7 @@ describe('application flow', () => {
     expect(openTutorial(createAppFlowState())).toEqual({
       screen: 'TUTORIAL',
       tutorialStep: 0,
-      selection: { board: 'straight-bench', difficulty: 'practice' },
+      selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
     });
   });
@@ -48,7 +49,7 @@ describe('application flow', () => {
     expect(nextTutorial(state)).toEqual({
       screen: 'SELECT',
       tutorialStep: TUTORIAL_STEP_COUNT - 1,
-      selection: { board: 'straight-bench', difficulty: 'practice' },
+      selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
     });
   });
@@ -67,7 +68,7 @@ describe('application flow', () => {
     expect(returnHome()).toEqual({
       screen: 'HOME',
       tutorialStep: 0,
-      selection: { board: 'straight-bench', difficulty: 'practice' },
+      selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
     });
   });
@@ -80,6 +81,10 @@ describe('application flow', () => {
     expect(canStartSelection(selected.selection)).toBe(false);
     expect(startGame(selected)).toBe(selected);
     expect(canStartSelection(home.selection)).toBe(true);
+
+    const trial = chooseGameMode(home, 'trial');
+    expect(trial.selection.mode).toBe('trial');
+    expect(canStartSelection(trial.selection)).toBe(true);
   });
 
   it('試合結果を表示し、同じ条件の再戦で試合へ戻る', () => {
@@ -87,7 +92,7 @@ describe('application flow', () => {
     const result = showResult(game, {
       playerScore: 2,
       cpuScore: 1,
-      selection: { board: 'straight-bench', difficulty: 'practice' },
+      selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       winner: 'PLAYER',
       seed: 20260814,
     });
@@ -97,7 +102,7 @@ describe('application flow', () => {
     expect(startRematch(result)).toEqual({
       screen: 'GAME',
       tutorialStep: 0,
-      selection: { board: 'straight-bench', difficulty: 'practice' },
+      selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
     });
     expect(startRematch(game)).toBe(game);

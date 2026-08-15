@@ -19,7 +19,7 @@
           <p class="flow-copy">下から弾を撃ち、白いパックを上の相手ゴールへ入れます。</p>
           <div class="status-panel" aria-live="polite">
             <strong>いま遊べる範囲</strong>
-            <span>弾・パック・ゴール・得点・90秒の固定更新・両砲台の状態表示</span>
+            <span>弾・パック・ゴール・得点・30秒／90秒の固定更新・両砲台の状態表示</span>
           </div>
           <div class="flow-actions">
             <button id="play-button" class="primary-action" type="button">遊ぶ</button>
@@ -55,7 +55,7 @@
 
         <section id="selection-screen" class="flow-panel" aria-labelledby="selection-title" hidden>
           <p class="section-kicker">試合条件</p>
-          <h2 id="selection-title">盤面とCPUの強さを選ぶ</h2>
+          <h2 id="selection-title">盤面・CPU・遊び方を選ぶ</h2>
           <p class="flow-copy">今すぐ遊べる条件には「開始できます」と表示しています。</p>
 
           <fieldset class="selection-group">
@@ -101,6 +101,27 @@
                 <strong>ふつう</strong>
                 <span>先読みを含むCPU。調整後に解放します。</span>
                 <small>次の工程で解放</small>
+              </button>
+            </div>
+          </fieldset>
+
+          <fieldset class="selection-group">
+            <legend>遊び方</legend>
+            <div class="selection-grid selection-grid-compact">
+              <button id="mode-trial" class="selection-card" type="button" aria-pressed="false">
+                <strong>30秒の試し撃ち</strong>
+                <span>短い時間で、狙いと発射を試します。</span>
+                <small>開始できます</small>
+              </button>
+              <button
+                id="mode-match"
+                class="selection-card is-selected"
+                type="button"
+                aria-pressed="true"
+              >
+                <strong>90秒試合</strong>
+                <span>通常の時間でCPUと対戦します。</span>
+                <small>開始できます</small>
               </button>
             </div>
           </fieldset>
