@@ -120,6 +120,7 @@ function render(): void {
   settingsAudioNote.textContent = soundController.isSupported
     ? '音声はこの端末で利用できます。'
     : 'このブラウザでは音声を利用できません。ゲームはそのまま遊べます。';
+  soundController.setMusicActive(!settingsOpen && flow.screen === 'GAME');
 
   const step = TUTORIAL_STEPS[flow.tutorialStep];
   if (!step) throw new Error('基本説明の手順がありません');
