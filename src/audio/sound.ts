@@ -87,7 +87,11 @@ export class SoundController {
     }
 
     if (this.context.state === 'suspended') {
-      void this.context.resume().catch(() => undefined);
+      try {
+        void this.context.resume().catch(() => undefined);
+      } catch {
+        // Some browsers can reject resume synchronously before user activation.
+      }
     }
     return this.context;
   }
@@ -97,16 +101,27 @@ export class SoundController {
     const context = this.ensureContext();
     if (!context) return;
 
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(110, context.currentTime);
-    gain.gain.setValueAtTime(0.015, context.currentTime);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    this.musicOscillator = oscillator;
-    this.musicGain = gain;
+    let oscillator: OscillatorNode | null = null;
+    let gain: GainNode | null = null;
+    try {
+      oscillator = context.createOscillator();
+      gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(110, context.currentTime);
+      gain.gain.setValueAtTime(0.015, context.currentTime);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      this.musicOscillator = oscillator;
+      this.musicGain = gain;
+    } catch {
+      try {
+        oscillator?.disconnect();
+        gain?.disconnect();
+      } catch {
+        // The browser may have partially constructed the node graph.
+      }
+    }
   }
 
   private syncMusic(): void {
@@ -124,8 +139,12 @@ export class SoundController {
     } catch {
       // The oscillator may already have been stopped by the browser.
     }
-    this.musicOscillator.disconnect();
-    this.musicGain?.disconnect();
+    try {
+      this.musicOscillator.disconnect();
+      this.musicGain?.disconnect();
+    } catch {
+      // The browser may have already disconnected one of the nodes.
+    }
     this.musicOscillator = null;
     this.musicGain = null;
   }
@@ -142,27 +161,43 @@ export class SoundController {
 
     const startAt = context.currentTime + offsetSeconds;
     const endAt = startAt + durationSeconds;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = 'triangle';
-    oscillator.frequency.setValueAtTime(startFrequency, startAt);
-    oscillator.frequency.exponentialRampToValueAtTime(endFrequency, endAt);
-    gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    this.activeEffects += 1;
-    oscillator.addEventListener(
-      'ended',
-      () => {
-        this.activeEffects = Math.max(0, this.activeEffects - 1);
-        oscillator.disconnect();
-        gain.disconnect();
-      },
-      { once: true },
-    );
-    oscillator.start(startAt);
-    oscillator.stop(endAt + 0.02);
+    let oscillator: OscillatorNode | null = null;
+    let gain: GainNode | null = null;
+    try {
+      oscillator = context.createOscillator();
+      gain = context.createGain();
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(startFrequency, startAt);
+      oscillator.frequency.exponentialRampToValueAtTime(endFrequency, endAt);
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      this.activeEffects += 1;
+      oscillator.addEventListener(
+        'ended',
+        () => {
+          this.activeEffects = Math.max(0, this.activeEffects - 1);
+          try {
+            oscillator?.disconnect();
+            gain?.disconnect();
+          } catch {
+            // The browser may have already disconnected one of the nodes.
+          }
+        },
+        { once: true },
+      );
+      oscillator.start(startAt);
+      oscillator.stop(endAt + 0.02);
+    } catch {
+      this.activeEffects = Math.max(0, this.activeEffects - 1);
+      try {
+        oscillator?.disconnect();
+        gain?.disconnect();
+      } catch {
+        // The browser may have partially constructed the node graph.
+      }
+    }
   }
 }
