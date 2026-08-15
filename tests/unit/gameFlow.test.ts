@@ -5,6 +5,7 @@ import {
   chooseBoard,
   chooseDifficulty,
   chooseGameMode,
+  cancelTutorialAction,
   completeTutorialAction,
   createAppFlowState,
   nextTutorial,
@@ -15,6 +16,7 @@ import {
   skipTutorial,
   startRematch,
   startGame,
+  startTutorialAction,
 } from '../../src/app/gameFlow';
 
 describe('application flow', () => {
@@ -23,6 +25,7 @@ describe('application flow', () => {
     expect(state).toEqual({
       screen: 'HOME',
       tutorialStep: 0,
+      tutorialActionStarted: false,
       tutorialActionCompleted: false,
       selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
@@ -34,6 +37,7 @@ describe('application flow', () => {
     expect(openTutorial(createAppFlowState())).toEqual({
       screen: 'TUTORIAL',
       tutorialStep: 0,
+      tutorialActionStarted: false,
       tutorialActionCompleted: false,
       selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
@@ -44,6 +48,9 @@ describe('application flow', () => {
     let state = completeTutorialAction(openTutorial(createAppFlowState()));
 
     for (let index = 1; index < TUTORIAL_STEP_COUNT; index += 1) {
+      if (state.tutorialStep === 1) {
+        state = completeTutorialAction(startTutorialAction(state));
+      }
       state = nextTutorial(state);
       expect(state.screen).toBe('TUTORIAL');
       expect(state.tutorialStep).toBe(index);
@@ -53,6 +60,7 @@ describe('application flow', () => {
     expect(nextTutorial(state)).toEqual({
       screen: 'SELECT',
       tutorialStep: TUTORIAL_STEP_COUNT - 1,
+      tutorialActionStarted: false,
       tutorialActionCompleted: false,
       selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
@@ -75,6 +83,24 @@ describe('application flow', () => {
     expect(nextTutorial(completed).tutorialActionCompleted).toBe(false);
   });
 
+  it('2番目の説明は押してから離した時だけ完了し、取消で戻る', () => {
+    const stepOne = nextTutorial(completeTutorialAction(openTutorial(createAppFlowState())));
+
+    expect(nextTutorial(stepOne)).toBe(stepOne);
+    expect(completeTutorialAction(stepOne)).toBe(stepOne);
+
+    const started = startTutorialAction(stepOne);
+    expect(started.tutorialActionStarted).toBe(true);
+    expect(completeTutorialAction(started)).toMatchObject({
+      tutorialActionStarted: false,
+      tutorialActionCompleted: true,
+    });
+    expect(nextTutorial(completeTutorialAction(started)).tutorialStep).toBe(2);
+    const canceled = cancelTutorialAction(started);
+    expect(canceled.tutorialActionStarted).toBe(false);
+    expect(nextTutorial(canceled)).toBe(canceled);
+  });
+
   it('すぐ遊ぶ、戻る、説明外の次へは安全に扱う', () => {
     const home = createAppFlowState();
 
@@ -85,6 +111,7 @@ describe('application flow', () => {
     expect(returnHome()).toEqual({
       screen: 'HOME',
       tutorialStep: 0,
+      tutorialActionStarted: false,
       tutorialActionCompleted: false,
       selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
@@ -120,6 +147,7 @@ describe('application flow', () => {
     expect(startRematch(result)).toEqual({
       screen: 'GAME',
       tutorialStep: 0,
+      tutorialActionStarted: false,
       tutorialActionCompleted: false,
       selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,

@@ -6,6 +6,7 @@ import {
   chooseBoard,
   chooseDifficulty,
   chooseGameMode,
+  cancelTutorialAction,
   completeTutorialAction,
   createAppFlowState,
   nextTutorial,
@@ -15,6 +16,7 @@ import {
   showResult,
   skipTutorial,
   startRematch,
+  startTutorialAction,
   startGame,
   type BoardId,
   type DifficultyId,
@@ -98,15 +100,29 @@ function render(): void {
   tutorialStepLabel.textContent = `基本説明 ${flow.tutorialStep + 1}/${TUTORIAL_STEP_COUNT}`;
   tutorialTitle.textContent = step.title;
   tutorialBody.textContent = step.body;
-  tutorialTarget.hidden = flow.tutorialStep !== 0;
-  tutorialTarget.disabled = flow.tutorialStep !== 0 || flow.tutorialActionCompleted;
+  tutorialTarget.hidden = flow.tutorialStep > 1;
+  tutorialTarget.disabled = flow.tutorialStep > 1 || flow.tutorialActionCompleted;
+  tutorialTarget.textContent = flow.tutorialStep === 1 ? '押して離す' : 'ここをタップ';
+  tutorialTarget.setAttribute(
+    'aria-label',
+    flow.tutorialStep === 1
+      ? '白いパックへ向けて押してから指を離す'
+      : '白いパックをタップして照準を試す',
+  );
   tutorialFeedback.textContent =
     flow.tutorialStep === 0
       ? flow.tutorialActionCompleted
         ? '照準できました。次へ進みます。'
         : '白いパックを1回タップしてください。'
-      : '';
-  tutorialNextButton.disabled = flow.tutorialStep === 0 && !flow.tutorialActionCompleted;
+      : flow.tutorialStep === 1
+        ? flow.tutorialActionCompleted
+          ? '発射できました。次へ進みます。'
+          : flow.tutorialActionStarted
+            ? 'そのまま指を離してください。'
+            : 'ボタンを押してから、指を離してください。'
+        : '';
+  tutorialNextButton.disabled =
+    (flow.tutorialStep === 0 || flow.tutorialStep === 1) && !flow.tutorialActionCompleted;
   tutorialNextButton.textContent =
     flow.tutorialStep === TUTORIAL_STEP_COUNT - 1 ? '条件を選ぶ' : '次へ';
 
@@ -199,10 +215,45 @@ tutorialButton.addEventListener('click', () => {
   tutorialTarget.focus();
 });
 
-tutorialTarget.addEventListener('click', () => {
+function finishTutorialAction(): void {
   flow = completeTutorialAction(flow);
   render();
   tutorialNextButton.focus();
+}
+
+tutorialTarget.addEventListener('pointerdown', (event) => {
+  if (flow.tutorialStep !== 1) return;
+  tutorialTarget.setPointerCapture(event.pointerId);
+  flow = startTutorialAction(flow);
+  render();
+});
+
+tutorialTarget.addEventListener('pointerup', (event) => {
+  if (flow.tutorialStep !== 1) return;
+  if (tutorialTarget.hasPointerCapture(event.pointerId)) {
+    tutorialTarget.releasePointerCapture(event.pointerId);
+  }
+  finishTutorialAction();
+});
+
+tutorialTarget.addEventListener('pointercancel', (event) => {
+  if (flow.tutorialStep !== 1) return;
+  if (tutorialTarget.hasPointerCapture(event.pointerId)) {
+    tutorialTarget.releasePointerCapture(event.pointerId);
+  }
+  flow = cancelTutorialAction(flow);
+  render();
+});
+
+tutorialTarget.addEventListener('click', () => {
+  if (flow.tutorialStep === 0) {
+    finishTutorialAction();
+    return;
+  }
+  if (flow.tutorialStep === 1 && !flow.tutorialActionCompleted) {
+    flow = startTutorialAction(flow);
+    finishTutorialAction();
+  }
 });
 
 tutorialNextButton.addEventListener('click', () => {
@@ -213,7 +264,11 @@ tutorialNextButton.addEventListener('click', () => {
     return;
   }
   render();
-  tutorialNextButton.focus();
+  if (flow.tutorialStep <= 1) {
+    tutorialTarget.focus();
+  } else {
+    tutorialNextButton.focus();
+  }
 });
 
 tutorialSkipButton.addEventListener('click', () => {
