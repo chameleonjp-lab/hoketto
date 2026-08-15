@@ -25,6 +25,7 @@ export interface GameResult {
 export interface AppFlowState {
   readonly screen: AppScreen;
   readonly tutorialStep: number;
+  readonly tutorialActionStarted: boolean;
   readonly tutorialActionCompleted: boolean;
   readonly selection: GameSelection;
   readonly result: GameResult | null;
@@ -42,7 +43,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   },
   {
     title: '2. 指を離して撃つ',
-    body: '指を離した瞬間に弾が出ます。弾がパックへ当たると、パックが動きます。',
+    body: '白いパックへ向けて押し、指を離して撃つ操作を試します。',
   },
   {
     title: '3. 次の一発を待つ',
@@ -70,6 +71,7 @@ export function createAppFlowState(): AppFlowState {
   return {
     screen: 'HOME',
     tutorialStep: 0,
+    tutorialActionStarted: false,
     tutorialActionCompleted: false,
     selection: { ...DEFAULT_GAME_SELECTION },
     result: null,
@@ -81,6 +83,7 @@ export function openTutorial(state: AppFlowState): AppFlowState {
     ...state,
     screen: 'TUTORIAL',
     tutorialStep: 0,
+    tutorialActionStarted: false,
     tutorialActionCompleted: false,
     result: null,
   };
@@ -102,23 +105,52 @@ export function chooseGameMode(state: AppFlowState, mode: GameModeId): AppFlowSt
   return { ...state, selection: { ...state.selection, mode } };
 }
 
+export function startTutorialAction(state: AppFlowState): AppFlowState {
+  if (state.screen !== 'TUTORIAL' || state.tutorialStep !== 1) return state;
+  return { ...state, tutorialActionStarted: true };
+}
+
 export function completeTutorialAction(state: AppFlowState): AppFlowState {
-  if (state.screen !== 'TUTORIAL' || state.tutorialStep !== 0) return state;
-  return { ...state, tutorialActionCompleted: true };
+  if (state.screen !== 'TUTORIAL') return state;
+  if (state.tutorialStep === 0) {
+    return { ...state, tutorialActionCompleted: true };
+  }
+  if (state.tutorialStep === 1 && state.tutorialActionStarted) {
+    return { ...state, tutorialActionStarted: false, tutorialActionCompleted: true };
+  }
+  return state;
+}
+
+export function cancelTutorialAction(state: AppFlowState): AppFlowState {
+  if (state.screen !== 'TUTORIAL' || state.tutorialStep !== 1) return state;
+  return { ...state, tutorialActionStarted: false };
 }
 
 export function nextTutorial(state: AppFlowState): AppFlowState {
   if (state.screen !== 'TUTORIAL') return state;
-  if (state.tutorialStep === 0 && !state.tutorialActionCompleted) return state;
+  if ((state.tutorialStep === 0 || state.tutorialStep === 1) && !state.tutorialActionCompleted) {
+    return state;
+  }
   if (state.tutorialStep >= TUTORIAL_STEP_COUNT - 1) {
     return { ...state, screen: 'SELECT', tutorialStep: TUTORIAL_STEP_COUNT - 1, result: null };
   }
-  return { ...state, tutorialStep: state.tutorialStep + 1, tutorialActionCompleted: false };
+  return {
+    ...state,
+    tutorialStep: state.tutorialStep + 1,
+    tutorialActionStarted: false,
+    tutorialActionCompleted: false,
+  };
 }
 
 export function skipTutorial(state: AppFlowState): AppFlowState {
   if (state.screen !== 'TUTORIAL') return state;
-  return { ...state, screen: 'SELECT', tutorialActionCompleted: false, result: null };
+  return {
+    ...state,
+    screen: 'SELECT',
+    tutorialActionStarted: false,
+    tutorialActionCompleted: false,
+    result: null,
+  };
 }
 
 export function startGame(state: AppFlowState): AppFlowState {
