@@ -22,6 +22,7 @@ export class SoundController {
   private activeEffects = 0;
   private effectsEnabled = false;
   private musicEnabled = false;
+  private musicActive = false;
 
   public get isSupported(): boolean {
     return getAudioContextConstructor() !== null;
@@ -42,11 +43,12 @@ export class SoundController {
 
   public setMusicEnabled(enabled: boolean): void {
     this.musicEnabled = enabled;
-    if (enabled) {
-      this.startMusic();
-    } else {
-      this.stopMusic();
-    }
+    this.syncMusic();
+  }
+
+  public setMusicActive(active: boolean): void {
+    this.musicActive = active;
+    this.syncMusic();
   }
 
   public playShot(owner: SoundOwner): void {
@@ -105,6 +107,14 @@ export class SoundController {
     oscillator.start();
     this.musicOscillator = oscillator;
     this.musicGain = gain;
+  }
+
+  private syncMusic(): void {
+    if (this.musicEnabled && this.musicActive) {
+      this.startMusic();
+    } else {
+      this.stopMusic();
+    }
   }
 
   private stopMusic(): void {
