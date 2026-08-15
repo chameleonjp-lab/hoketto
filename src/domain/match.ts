@@ -37,15 +37,18 @@ export interface GoalEvent {
   readonly points: 1 | 2;
 }
 
-export function createMatchState(seed: number): MatchState {
+export function createMatchState(seed: number, durationSeconds = MATCH_SECONDS): MatchState {
   if (!Number.isSafeInteger(seed)) {
     throw new Error('試合の乱数種は安全な整数で指定してください');
+  }
+  if (!Number.isSafeInteger(durationSeconds) || durationSeconds <= 0) {
+    throw new Error('試合時間は1秒以上の安全な整数で指定してください');
   }
   return {
     phase: 'PLAYING',
     seed,
     tick: 0,
-    ticksRemaining: MATCH_SECONDS * TICKS_PER_SECOND,
+    ticksRemaining: durationSeconds * TICKS_PER_SECOND,
     playerScore: 0,
     cpuScore: 0,
     lastGoalPoints: 0,
