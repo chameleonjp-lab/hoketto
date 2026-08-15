@@ -35,6 +35,8 @@ export interface TechnicalProbeOptions {
   readonly seed?: number;
   readonly durationSeconds?: number;
   readonly onResult?: (result: TechnicalProbeResult) => void;
+  readonly onShot?: (owner: 'player' | 'cpu') => void;
+  readonly onGoal?: (team: 'player' | 'cpu') => void;
 }
 
 class TechnicalProbeScene extends Phaser.Scene {
@@ -107,7 +109,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     const fixedSeconds = 1 / FIXED_HZ;
     let steps = 0;
     while (this.accumulatorSeconds >= fixedSeconds && steps < 12) {
-      this.state = stepStraightBench(this.state, 1);
+      this.advanceFixedTick();
       this.accumulatorSeconds -= fixedSeconds;
       steps += 1;
     }
@@ -150,6 +152,29 @@ class TechnicalProbeScene extends Phaser.Scene {
     );
   }
 
+  private advanceFixedTick(): void {
+    const previous = this.state;
+    const previousBulletIds = new Set(previous.bullets.map((bullet) => bullet.id));
+    this.state = stepStraightBench(previous, 1);
+
+    let observedCpuShot = false;
+    for (const bullet of this.state.bullets) {
+      if (!previousBulletIds.has(bullet.id)) {
+        this.options.onShot?.(bullet.owner);
+        observedCpuShot ||= bullet.owner === 'cpu';
+      }
+    }
+    if (this.state.nextBulletId > previous.nextBulletId && !observedCpuShot) {
+      this.options.onShot?.('cpu');
+    }
+    if (this.state.match.playerScore > previous.match.playerScore) {
+      this.options.onGoal?.('player');
+    }
+    if (this.state.match.cpuScore > previous.match.cpuScore) {
+      this.options.onGoal?.('cpu');
+    }
+  }
+
   private pointFromPointer(pointer: Phaser.Input.Pointer): Point {
     return { x: pointer.x, y: pointer.y };
   }
@@ -189,7 +214,9 @@ class TechnicalProbeScene extends Phaser.Scene {
       return;
     }
     if (event.kind === 'fire') {
-      this.state = firePlayerShot(this.state, event.point);
+      const nextState = firePlayerShot(this.state, event.point);
+      if (nextState !== this.state) this.options.onShot?.('player');
+      this.state = nextState;
       this.aimPoint = null;
       return;
     }
