@@ -23,6 +23,24 @@ describe('straight bench simulation', () => {
     expect(state.pucks[0]?.position).toEqual({ x: 180, y: 320 });
   });
 
+  it('30秒の試し撃ちは同じ物理で時間だけ短くする', () => {
+    const state = createStraightBenchState(20260814, 30);
+
+    expect(state.durationSeconds).toBe(30);
+    expect(state.match.ticksRemaining).toBe(30 * 120);
+    expect(state.pucks).toHaveLength(1);
+  });
+
+  it('試し撃ちの再戦も30秒を保つ', () => {
+    const initial = createStraightBenchState(20260814, 30);
+    const result = { ...initial, match: { ...initial.match, phase: 'RESULT' as const } };
+    const rematch = createStraightBenchRematch(result);
+
+    expect(rematch.durationSeconds).toBe(30);
+    expect(rematch.match.ticksRemaining).toBe(30 * 120);
+    expect(rematch.match.seed).toBe(20260815);
+  });
+
   it('弾が高速でもパックを通り抜けず、命中した方向へ押す', () => {
     const fired = firePlayerShot(createStraightBenchState(), { x: 180, y: 320 });
     const afterHit = stepStraightBench(fired, 40);
