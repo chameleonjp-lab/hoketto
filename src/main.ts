@@ -6,6 +6,7 @@ import {
   chooseBoard,
   chooseDifficulty,
   chooseGameMode,
+  completeTutorialAction,
   createAppFlowState,
   nextTutorial,
   openTutorial,
@@ -36,6 +37,8 @@ const gameRoot = requireElement<HTMLElement>('#game-root');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
 const tutorialTitle = requireElement<HTMLElement>('#tutorial-title');
 const tutorialBody = requireElement<HTMLElement>('#tutorial-body');
+const tutorialFeedback = requireElement<HTMLElement>('#tutorial-feedback');
+const tutorialTarget = requireElement<HTMLButtonElement>('#tutorial-target');
 const playButton = requireElement<HTMLButtonElement>('#play-button');
 const tutorialButton = requireElement<HTMLButtonElement>('#tutorial-button');
 const tutorialNextButton = requireElement<HTMLButtonElement>('#tutorial-next');
@@ -95,6 +98,15 @@ function render(): void {
   tutorialStepLabel.textContent = `基本説明 ${flow.tutorialStep + 1}/${TUTORIAL_STEP_COUNT}`;
   tutorialTitle.textContent = step.title;
   tutorialBody.textContent = step.body;
+  tutorialTarget.hidden = flow.tutorialStep !== 0;
+  tutorialTarget.disabled = flow.tutorialStep !== 0 || flow.tutorialActionCompleted;
+  tutorialFeedback.textContent =
+    flow.tutorialStep === 0
+      ? flow.tutorialActionCompleted
+        ? '照準できました。次へ進みます。'
+        : '白いパックを1回タップしてください。'
+      : '';
+  tutorialNextButton.disabled = flow.tutorialStep === 0 && !flow.tutorialActionCompleted;
   tutorialNextButton.textContent =
     flow.tutorialStep === TUTORIAL_STEP_COUNT - 1 ? '条件を選ぶ' : '次へ';
 
@@ -183,6 +195,12 @@ playButton.addEventListener('click', enterSelection);
 
 tutorialButton.addEventListener('click', () => {
   flow = openTutorial(flow);
+  render();
+  tutorialTarget.focus();
+});
+
+tutorialTarget.addEventListener('click', () => {
+  flow = completeTutorialAction(flow);
   render();
   tutorialNextButton.focus();
 });

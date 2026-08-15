@@ -336,6 +336,45 @@ h2 {
   transform: translate(-50%, -50%);
 }
 
+.tutorial-target {
+  position: absolute;
+  top: 43%;
+  left: 50%;
+  width: 76px;
+  min-height: 76px;
+  padding: 8px;
+  border: 2px dashed #f5c451;
+  border-radius: 50%;
+  background: rgb(245 196 81 / 16%);
+  color: #fff3c4;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  transform: translate(-50%, -50%);
+  touch-action: manipulation;
+}
+
+.tutorial-target:hover {
+  background: rgb(245 196 81 / 28%);
+}
+
+.tutorial-target:disabled {
+  border-style: solid;
+  background: rgb(53 214 194 / 18%);
+  color: #b9fff4;
+  cursor: default;
+  opacity: 1;
+}
+
+.tutorial-feedback {
+  min-height: 1.6em;
+  margin: 10px 0 0;
+  color: #f5c451;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .tutorial-shot {
   position: absolute;
   bottom: 52px;

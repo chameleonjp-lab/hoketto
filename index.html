@@ -31,19 +31,30 @@
           id="tutorial-screen"
           class="flow-panel"
           aria-labelledby="tutorial-title"
-          aria-describedby="tutorial-body"
+          aria-describedby="tutorial-body tutorial-feedback"
           hidden
         >
           <p id="tutorial-step-label" class="section-kicker">基本説明 1/3</p>
           <h2 id="tutorial-title">1. 方向を決める</h2>
-          <div class="tutorial-board" aria-hidden="true">
-            <span class="tutorial-goal">相手ゴール</span>
-            <span class="tutorial-puck"></span>
+          <div class="tutorial-board">
+            <span class="tutorial-goal" aria-hidden="true">相手ゴール</span>
+            <span class="tutorial-puck" aria-hidden="true"></span>
+            <button
+              id="tutorial-target"
+              class="tutorial-target"
+              type="button"
+              aria-label="白いパックをタップして照準を試す"
+            >
+              ここをタップ
+            </button>
             <span class="tutorial-shot"></span>
-            <span class="tutorial-turret">自分</span>
+            <span class="tutorial-turret" aria-hidden="true">自分</span>
           </div>
           <p id="tutorial-body" class="flow-copy">
-            盤面の下から白いパックへ向けて、画面を触って狙います。
+            まず白いパックを1回タップして、照準を試します。
+          </p>
+          <p id="tutorial-feedback" class="tutorial-feedback" role="status" aria-live="polite">
+            白いパックを1回タップしてください。
           </p>
           <div class="flow-actions">
             <button id="tutorial-next" class="primary-action" type="button">次へ</button>
