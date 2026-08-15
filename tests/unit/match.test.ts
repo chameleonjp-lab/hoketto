@@ -21,6 +21,17 @@ describe('match state', () => {
     expect(next.ticksRemaining).toBe(0);
   });
 
+  it('指定した試合時間を固定更新数へ変換する', () => {
+    const state = createMatchState(1234, 30);
+
+    expect(state.ticksRemaining).toBe(30 * TICKS_PER_SECOND);
+  });
+
+  it('0秒や小数の試合時間を受け付けない', () => {
+    expect(() => createMatchState(1234, 0)).toThrow();
+    expect(() => createMatchState(1234, 1.5)).toThrow();
+  });
+
   it('同じ固定更新内の両側の得点を捨てない', () => {
     const state = createMatchState(1234);
     const next = applyGoals(state, [
