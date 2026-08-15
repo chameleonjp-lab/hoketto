@@ -336,6 +336,35 @@ h2 {
   transform: translate(-50%, -50%);
 }
 
+.tutorial-charge-ring {
+  position: absolute;
+  top: 43%;
+  left: 50%;
+  width: 88px;
+  height: 88px;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.tutorial-charge-ring circle {
+  fill: none;
+  stroke: #35d6c2;
+  stroke-linecap: round;
+  stroke-width: 5;
+  stroke-dasharray: 276;
+  stroke-dashoffset: 276;
+}
+
+.tutorial-charge-ring.is-waiting circle {
+  animation: tutorial-charge-fill 900ms linear forwards;
+}
+
+@keyframes tutorial-charge-fill {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 .tutorial-target {
   position: absolute;
   top: 43%;
@@ -397,6 +426,13 @@ h2 {
   border-right: 4px solid #35d6c2;
   content: '';
   transform: translate(-50%, 0) rotate(-45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-charge-ring.is-waiting circle {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
 }
 
 .game-root {
