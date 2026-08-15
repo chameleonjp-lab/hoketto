@@ -25,6 +25,7 @@ export interface GameResult {
 export interface AppFlowState {
   readonly screen: AppScreen;
   readonly tutorialStep: number;
+  readonly tutorialActionCompleted: boolean;
   readonly selection: GameSelection;
   readonly result: GameResult | null;
 }
@@ -37,7 +38,7 @@ export interface TutorialStep {
 export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     title: '1. 方向を決める',
-    body: '盤面の下から白いパックへ向けて、画面を触って狙います。',
+    body: 'まず白いパックを1回タップして、照準を試します。',
   },
   {
     title: '2. 指を離して撃つ',
@@ -69,13 +70,20 @@ export function createAppFlowState(): AppFlowState {
   return {
     screen: 'HOME',
     tutorialStep: 0,
+    tutorialActionCompleted: false,
     selection: { ...DEFAULT_GAME_SELECTION },
     result: null,
   };
 }
 
 export function openTutorial(state: AppFlowState): AppFlowState {
-  return { ...state, screen: 'TUTORIAL', tutorialStep: 0, result: null };
+  return {
+    ...state,
+    screen: 'TUTORIAL',
+    tutorialStep: 0,
+    tutorialActionCompleted: false,
+    result: null,
+  };
 }
 
 export function openSelection(state: AppFlowState): AppFlowState {
@@ -94,17 +102,23 @@ export function chooseGameMode(state: AppFlowState, mode: GameModeId): AppFlowSt
   return { ...state, selection: { ...state.selection, mode } };
 }
 
+export function completeTutorialAction(state: AppFlowState): AppFlowState {
+  if (state.screen !== 'TUTORIAL' || state.tutorialStep !== 0) return state;
+  return { ...state, tutorialActionCompleted: true };
+}
+
 export function nextTutorial(state: AppFlowState): AppFlowState {
   if (state.screen !== 'TUTORIAL') return state;
+  if (state.tutorialStep === 0 && !state.tutorialActionCompleted) return state;
   if (state.tutorialStep >= TUTORIAL_STEP_COUNT - 1) {
     return { ...state, screen: 'SELECT', tutorialStep: TUTORIAL_STEP_COUNT - 1, result: null };
   }
-  return { ...state, tutorialStep: state.tutorialStep + 1 };
+  return { ...state, tutorialStep: state.tutorialStep + 1, tutorialActionCompleted: false };
 }
 
 export function skipTutorial(state: AppFlowState): AppFlowState {
   if (state.screen !== 'TUTORIAL') return state;
-  return { ...state, screen: 'SELECT', result: null };
+  return { ...state, screen: 'SELECT', tutorialActionCompleted: false, result: null };
 }
 
 export function startGame(state: AppFlowState): AppFlowState {
