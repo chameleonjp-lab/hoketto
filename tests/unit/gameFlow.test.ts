@@ -51,12 +51,16 @@ describe('application flow', () => {
       if (state.tutorialStep === 1) {
         state = completeTutorialAction(startTutorialAction(state));
       }
+      if (state.tutorialStep === 2) {
+        state = completeTutorialAction(state);
+      }
       state = nextTutorial(state);
       expect(state.screen).toBe('TUTORIAL');
       expect(state.tutorialStep).toBe(index);
       expect(state.tutorialActionCompleted).toBe(false);
     }
 
+    state = completeTutorialAction(state);
     expect(nextTutorial(state)).toEqual({
       screen: 'SELECT',
       tutorialStep: TUTORIAL_STEP_COUNT - 1,
@@ -99,6 +103,28 @@ describe('application flow', () => {
     const canceled = cancelTutorialAction(started);
     expect(canceled.tutorialActionStarted).toBe(false);
     expect(nextTutorial(canceled)).toBe(canceled);
+  });
+
+  it('3番目の説明は充電輪が満ちるまで進めず、待機後に選択へ移る', () => {
+    const stepTwo = nextTutorial(
+      completeTutorialAction(
+        startTutorialAction(
+          nextTutorial(completeTutorialAction(openTutorial(createAppFlowState()))),
+        ),
+      ),
+    );
+
+    expect(stepTwo.tutorialStep).toBe(2);
+    expect(stepTwo.tutorialActionStarted).toBe(true);
+    expect(nextTutorial(stepTwo)).toBe(stepTwo);
+
+    const waited = completeTutorialAction(stepTwo);
+    expect(waited).toMatchObject({
+      tutorialActionStarted: false,
+      tutorialActionCompleted: true,
+    });
+    expect(nextTutorial(waited).screen).toBe('SELECT');
+    expect(cancelTutorialAction(stepTwo).tutorialActionStarted).toBe(false);
   });
 
   it('すぐ遊ぶ、戻る、説明外の次へは安全に扱う', () => {
