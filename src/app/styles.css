@@ -247,6 +247,47 @@ h2 {
   flex: 1 1 12rem;
 }
 
+.settings-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.settings-toggle {
+  display: flex;
+  min-height: 64px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #496483;
+  border-radius: 12px;
+  background: #131f35;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: 24px;
+  height: 24px;
+  accent-color: #35d6c2;
+}
+
+.settings-toggle span {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-toggle small,
+.settings-note {
+  color: #c8d1e5;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.settings-note {
+  min-height: 1.5em;
+  margin: 14px 0 0;
+}
+
 .primary-action {
   border-color: #35d6c2;
   background: #1b8178;
