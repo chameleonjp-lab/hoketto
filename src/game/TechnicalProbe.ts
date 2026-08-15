@@ -18,6 +18,7 @@ import {
   type TurretReadiness,
   type StraightBenchState,
 } from './straightBench';
+import { MATCH_SECONDS } from '../domain/match';
 
 const WIDTH = STRAIGHT_BENCH_WIDTH;
 const HEIGHT = STRAIGHT_BENCH_HEIGHT;
@@ -32,6 +33,7 @@ export interface TechnicalProbeResult {
 
 export interface TechnicalProbeOptions {
   readonly seed?: number;
+  readonly durationSeconds?: number;
   readonly onResult?: (result: TechnicalProbeResult) => void;
 }
 
@@ -64,7 +66,10 @@ class TechnicalProbeScene extends Phaser.Scene {
   public constructor(options: TechnicalProbeOptions = {}) {
     super('technical-probe');
     this.options = options;
-    this.state = createStraightBenchState(options.seed ?? 20260814);
+    this.state = createStraightBenchState(
+      options.seed ?? 20260814,
+      options.durationSeconds ?? MATCH_SECONDS,
+    );
   }
 
   public create(): void {
