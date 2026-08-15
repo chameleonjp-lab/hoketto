@@ -12,7 +12,7 @@
 | 静的検査                   | 通過 | `eslint .`、2026-08-15、終了コード0                                                    |
 | 型検査                     | 通過 | `tsc --noEmit`、2026-08-15、終了コード0                                                |
 | 単体試験                   | 通過 | `vitest run`、2026-08-15、8ファイル・55件                                              |
-| 本番出力                   | 通過 | `vite build`、2026-08-15、`dist`生成。gzip JavaScriptは368.53KB                        |
+| 本番出力                   | 通過 | `vite build`、2026-08-15、`dist`生成。gzip JavaScriptは368.58KB                        |
 | 10,000件の性質試験         | 通過 | `tests/property/collision.property.test.ts`、2026-08-15、10,000件                      |
 | 線分・長方形の衝突         | 通過 | 単体試験と性質試験で時刻・接触距離を確認                                               |
 | 中断・復帰状態             | 通過 | `tests/unit/match.test.ts`、SUSPENDED、3秒再開、INVALIDを確認                          |
