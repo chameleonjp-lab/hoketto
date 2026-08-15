@@ -18,8 +18,10 @@ describe('sound controller', () => {
     expect(() => {
       sound.setEffectsEnabled(true);
       sound.setMusicEnabled(true);
+      sound.setMusicActive(true);
       sound.playShot('player');
       sound.playGoal('cpu');
+      sound.setMusicActive(false);
       sound.setMusicEnabled(false);
       sound.dispose();
     }).not.toThrow();
