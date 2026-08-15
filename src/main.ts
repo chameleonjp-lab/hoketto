@@ -25,6 +25,7 @@ import {
   type AppFlowState,
 } from './app/gameFlow';
 import { mountTechnicalProbe, type TechnicalProbeResult } from './game/TechnicalProbe';
+import { SoundController } from './audio/sound';
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -37,6 +38,7 @@ const tutorialScreen = requireElement<HTMLElement>('#tutorial-screen');
 const selectionScreen = requireElement<HTMLElement>('#selection-screen');
 const gameScreen = requireElement<HTMLElement>('#game-screen');
 const gameRoot = requireElement<HTMLElement>('#game-root');
+const settingsScreen = requireElement<HTMLElement>('#settings-screen');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
 const tutorialTitle = requireElement<HTMLElement>('#tutorial-title');
 const tutorialBody = requireElement<HTMLElement>('#tutorial-body');
@@ -44,6 +46,11 @@ const tutorialFeedback = requireElement<HTMLElement>('#tutorial-feedback');
 const tutorialTarget = requireElement<HTMLButtonElement>('#tutorial-target');
 const tutorialChargeRing = requireElement<HTMLElement>('#tutorial-charge-ring');
 const playButton = requireElement<HTMLButtonElement>('#play-button');
+const settingsButton = requireElement<HTMLButtonElement>('#settings-button');
+const settingsEffects = requireElement<HTMLInputElement>('#settings-effects');
+const settingsMusic = requireElement<HTMLInputElement>('#settings-music');
+const settingsAudioNote = requireElement<HTMLElement>('#settings-audio-note');
+const settingsBack = requireElement<HTMLButtonElement>('#settings-back');
 const tutorialButton = requireElement<HTMLButtonElement>('#tutorial-button');
 const tutorialNextButton = requireElement<HTMLButtonElement>('#tutorial-next');
 const tutorialSkipButton = requireElement<HTMLButtonElement>('#tutorial-skip');
@@ -66,6 +73,8 @@ const resultHomeButton = requireElement<HTMLButtonElement>('#result-home');
 
 let flow: AppFlowState = createAppFlowState();
 let game: ReturnType<typeof mountTechnicalProbe> | null = null;
+const soundController = new SoundController();
+let settingsOpen = false;
 let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
 let tutorialWaitTimer: number | null = null;
@@ -98,12 +107,19 @@ function armResultButtons(): void {
 }
 
 function render(): void {
-  homeScreen.hidden = flow.screen !== 'HOME';
-  tutorialScreen.hidden = flow.screen !== 'TUTORIAL';
-  selectionScreen.hidden = flow.screen !== 'SELECT';
-  gameScreen.hidden = flow.screen !== 'GAME';
-  resultScreen.hidden = flow.screen !== 'RESULT';
+  homeScreen.hidden = settingsOpen || flow.screen !== 'HOME';
+  tutorialScreen.hidden = settingsOpen || flow.screen !== 'TUTORIAL';
+  selectionScreen.hidden = settingsOpen || flow.screen !== 'SELECT';
+  gameScreen.hidden = settingsOpen || flow.screen !== 'GAME';
+  resultScreen.hidden = settingsOpen || flow.screen !== 'RESULT';
+  settingsScreen.hidden = !settingsOpen;
   if (flow.screen !== 'RESULT') resetResultButtons();
+
+  settingsEffects.checked = soundController.areEffectsEnabled;
+  settingsMusic.checked = soundController.isMusicEnabled;
+  settingsAudioNote.textContent = soundController.isSupported
+    ? '音声はこの端末で利用できます。'
+    : 'このブラウザでは音声を利用できません。ゲームはそのまま遊べます。';
 
   const step = TUTORIAL_STEPS[flow.tutorialStep];
   if (!step) throw new Error('基本説明の手順がありません');
@@ -224,6 +240,8 @@ function enterGame(seed = nextSeed): void {
       seed,
       durationSeconds: flow.selection.mode === 'trial' ? 30 : 90,
       onResult: handleGameResult,
+      onShot: (owner) => soundController.playShot(owner),
+      onGoal: (team) => soundController.playGoal(team),
     });
   }
 }
@@ -249,6 +267,30 @@ function handleGameResult(result: TechnicalProbeResult): void {
 }
 
 playButton.addEventListener('click', enterSelection);
+
+settingsButton.addEventListener('click', () => {
+  settingsOpen = true;
+  render();
+  settingsEffects.focus();
+});
+
+settingsBack.addEventListener('click', () => {
+  settingsOpen = false;
+  render();
+  playButton.focus();
+});
+
+settingsEffects.addEventListener('change', () => {
+  soundController.setEffectsEnabled(settingsEffects.checked);
+  render();
+  settingsEffects.focus();
+});
+
+settingsMusic.addEventListener('change', () => {
+  soundController.setMusicEnabled(settingsMusic.checked);
+  render();
+  settingsMusic.focus();
+});
 
 tutorialButton.addEventListener('click', () => {
   flow = openTutorial(flow);
@@ -393,6 +435,7 @@ window.addEventListener('pagehide', () => {
   disposeGame();
   clearTutorialWaitTimer();
   resetResultButtons();
+  soundController.dispose();
 });
 
 render();
