@@ -1,6 +1,8 @@
 export type AppScreen = 'HOME' | 'TUTORIAL' | 'SELECT' | 'GAME' | 'RESULT';
 
-export type BoardId = 'straight-bench' | 'twin-block' | 'ricochet-lane';
+import type { PlayableBoardId } from '../config/boards';
+
+export type BoardId = PlayableBoardId | 'ricochet-lane';
 
 export type DifficultyId = 'practice' | 'normal';
 
@@ -63,7 +65,7 @@ export const DEFAULT_GAME_SELECTION: GameSelection = {
 
 export function canStartSelection(selection: GameSelection): boolean {
   return (
-    selection.board === 'straight-bench' &&
+    (selection.board === 'straight-bench' || selection.board === 'twin-block') &&
     (selection.difficulty === 'practice' || selection.difficulty === 'normal') &&
     (selection.mode === 'trial' || selection.mode === 'match')
   );
