@@ -163,9 +163,12 @@ function render(): void {
     .filter(Boolean)
     .join(' ');
   tutorialButton.textContent = tutorialCompleted ? '説明をもう一度' : '説明を見る';
-  homeProgressNote.textContent = tutorialCompleted
-    ? '基本説明は完了しています。必要なら説明をもう一度見られます。'
-    : progressPersistenceWarning;
+  homeProgressNote.textContent = [
+    tutorialCompleted ? '基本説明は完了しています。必要なら説明をもう一度見られます。' : '',
+    progressPersistenceWarning,
+  ]
+    .filter(Boolean)
+    .join(' ');
   soundController.setMusicActive(!settingsOpen && flow.screen === 'GAME');
 
   const step = TUTORIAL_STEPS[flow.tutorialStep];
