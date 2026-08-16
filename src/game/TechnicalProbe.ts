@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { getBoardDefinition, type PlayableBoardId } from '../config/boards';
 import type { Point } from '../domain/types';
 import { PointerInputController, type PointerInputEvent } from './pointerInput';
+import { KeyboardInputController, type KeyboardInputEvent } from './keyboardInput';
 import {
   BULLET_RADIUS,
   FIXED_HZ,
@@ -13,6 +14,7 @@ import {
   STRAIGHT_BENCH_HEIGHT,
   STRAIGHT_BENCH_WIDTH,
   createStraightBenchState,
+  beginStraightBenchResume,
   firePlayerShot,
   getCpuTurret,
   getCpuTurretReadiness,
@@ -21,6 +23,7 @@ import {
   getPlayerTurretReadiness,
   secondsRemaining,
   stepStraightBench,
+  suspendStraightBench,
   type TurretReadiness,
   type CpuDifficulty,
   type StraightBenchState,
@@ -46,6 +49,7 @@ export interface TechnicalProbeOptions {
   readonly onResult?: (result: TechnicalProbeResult) => void;
   readonly onShot?: (owner: 'player' | 'cpu') => void;
   readonly onGoal?: (team: 'player' | 'cpu') => void;
+  readonly onPauseChange?: (state: 'playing' | 'paused' | 'resuming') => void;
 }
 
 class TechnicalProbeScene extends Phaser.Scene {
@@ -59,6 +63,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private coreText!: Phaser.GameObjects.Text;
   private noticeText!: Phaser.GameObjects.Text;
+  private canvas!: HTMLCanvasElement;
   private readonly inputController = new PointerInputController({
     board: {
       left: BOARD_MARGIN,
@@ -68,11 +73,24 @@ class TechnicalProbeScene extends Phaser.Scene {
     },
     viewport: { width: WIDTH, height: HEIGHT },
     exclusionPixels: BOARD_MARGIN,
+    forward: { origin: getPlayerTurret(), minimumDistance: 32, axis: 'up' },
+  });
+  private readonly keyboardController = new KeyboardInputController({
+    board: {
+      left: BOARD_MARGIN,
+      top: BOARD_MARGIN,
+      right: WIDTH - BOARD_MARGIN,
+      bottom: HEIGHT - BOARD_MARGIN,
+    },
+    viewport: { width: WIDTH, height: HEIGHT },
+    exclusionPixels: BOARD_MARGIN,
+    forward: { origin: getPlayerTurret(), minimumDistance: 32, axis: 'up' },
   });
   private state: StraightBenchState;
   private aimPoint: Point | null = null;
   private accumulatorSeconds = 0;
   private resultReported = false;
+  private lastPhase: StraightBenchState['match']['phase'] = 'PLAYING';
   private readonly options: TechnicalProbeOptions;
 
   public constructor(options: TechnicalProbeOptions = {}) {
@@ -87,6 +105,15 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   public create(): void {
+    this.canvas = this.game.canvas;
+    this.canvas.tabIndex = 0;
+    this.canvas.setAttribute(
+      'aria-label',
+      'ホケットの試合盤面。矢印キーで狙い、EnterまたはSpaceで発射します。',
+    );
+    this.canvas.addEventListener('focus', this.handleCanvasFocus);
+    this.canvas.addEventListener('blur', this.handleCanvasBlur);
+    this.events.once('shutdown', this.handleShutdown, this);
     this.graphics = this.add.graphics();
     this.hudText = this.add.text(0, 0, '', {
       color: '#f4fafc',
@@ -121,11 +148,18 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.input.on('pointerup', this.handlePointerUp, this);
     this.input.on('pointerupoutside', this.handlePointerUpOutside, this);
     this.input.on('pointercancel', this.handlePointerCancel, this);
+    this.input.keyboard?.on('keydown', this.handleKeyboardDown, this);
+    this.syncKeyboardState();
+    this.options.onPauseChange?.('playing');
     this.render();
   }
 
   public update(_time: number, delta: number): void {
-    this.accumulatorSeconds += Math.min(delta, 100) / 1000;
+    if (this.state.match.phase !== 'SUSPENDED') {
+      this.accumulatorSeconds += Math.min(delta, 100) / 1000;
+    } else {
+      this.accumulatorSeconds = 0;
+    }
     const fixedSeconds = 1 / FIXED_HZ;
     let steps = 0;
     while (this.accumulatorSeconds >= fixedSeconds && steps < 12) {
@@ -143,6 +177,11 @@ class TechnicalProbeScene extends Phaser.Scene {
     } else if (!this.canAim() && this.inputController.getState().phase === 'READY') {
       this.inputController.setCharging(true);
     }
+    if (this.lastPhase === 'COUNTDOWN' && this.state.match.phase !== 'COUNTDOWN') {
+      this.options.onPauseChange?.('playing');
+    }
+    this.lastPhase = this.state.match.phase;
+    this.syncKeyboardState();
     this.reportResultIfNeeded();
     this.render();
   }
@@ -200,7 +239,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
-    if (this.state.match.phase === 'RESULT') return;
+    if (this.state.match.phase === 'RESULT' || this.state.match.phase === 'SUSPENDED') return;
     this.applyInputEvent(
       this.inputController.pointerDown(pointer.id, this.pointFromPointer(pointer)),
     );
@@ -226,6 +265,92 @@ class TechnicalProbeScene extends Phaser.Scene {
   private handlePointerCancel(pointer: Phaser.Input.Pointer): void {
     this.applyInputEvent(this.inputController.pointerCancel(pointer.id));
     this.aimPoint = null;
+  }
+
+  private handleCanvasFocus = (): void => {
+    this.keyboardController.setFocused(true);
+  };
+
+  private handleCanvasBlur = (): void => {
+    this.keyboardController.setFocused(false);
+  };
+
+  private handleShutdown = (): void => {
+    this.input.keyboard?.off('keydown', this.handleKeyboardDown, this);
+    this.canvas.removeEventListener('focus', this.handleCanvasFocus);
+    this.canvas.removeEventListener('blur', this.handleCanvasBlur);
+  };
+
+  private handleKeyboardDown(event: KeyboardEvent): void {
+    const isAimKey = event.key.startsWith('Arrow');
+    const isActionKey = event.key === 'Enter' || event.key === ' ' || event.key === 'Escape';
+    if (!isAimKey && !isActionKey) return;
+
+    if (isAimKey && this.inputController.getState().phase === 'AIMING') {
+      this.applyInputEvent(this.inputController.stateChanged('keyboard-input'));
+      this.aimPoint = null;
+    }
+    const inputEvent = this.keyboardController.keyDown(event);
+    if (inputEvent.kind !== 'ignored') event.preventDefault();
+    this.applyKeyboardInputEvent(inputEvent);
+  }
+
+  private applyKeyboardInputEvent(event: KeyboardInputEvent): void {
+    if (event.kind === 'aim-update') return;
+    if (event.kind === 'pause-request') {
+      this.togglePause();
+      return;
+    }
+    if (event.kind === 'resume-request') {
+      this.resumeFromPause();
+      return;
+    }
+    if (event.kind === 'fire') {
+      if (this.inputController.getState().phase === 'AIMING') return;
+      const nextState = firePlayerShot(this.state, event.point);
+      if (nextState !== this.state) this.options.onShot?.('player');
+      this.state = nextState;
+      return;
+    }
+  }
+
+  private syncKeyboardState(): void {
+    if (this.state.match.phase === 'SUSPENDED') {
+      this.keyboardController.setPaused(true);
+      return;
+    }
+    this.keyboardController.setPaused(false);
+    const active = this.state.match.phase === 'PLAYING' || this.state.match.phase === 'OVERTIME';
+    this.keyboardController.setActive(active);
+    if (active) this.keyboardController.setCharging(!this.canAim());
+  }
+
+  public togglePause(): void {
+    if (this.state.match.phase === 'SUSPENDED') {
+      this.resumeFromPause();
+      return;
+    }
+    if (
+      this.state.match.phase === 'RESULT' ||
+      this.state.match.phase === 'INVALID' ||
+      this.state.match.phase === 'COUNTDOWN'
+    ) {
+      return;
+    }
+    this.applyInputEvent(this.inputController.stateChanged('manual-pause'));
+    this.aimPoint = null;
+    this.state = suspendStraightBench(this.state, 'manual');
+    this.accumulatorSeconds = 0;
+    this.keyboardController.setPaused(true);
+    this.options.onPauseChange?.('paused');
+  }
+
+  private resumeFromPause(): void {
+    if (this.state.match.phase !== 'SUSPENDED') return;
+    this.state = beginStraightBenchResume(this.state);
+    this.accumulatorSeconds = 0;
+    this.keyboardController.setPaused(false);
+    this.options.onPauseChange?.('resuming');
   }
 
   private applyInputEvent(event: PointerInputEvent): void {
@@ -268,11 +393,32 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.drawTurret(graphics, getCpuTurret(), this.cpuColor, false);
     this.drawTurret(graphics, getPlayerTurret(), this.playerColor, true);
 
-    if (this.aimPoint && this.inputController.getState().phase === 'AIMING') {
+    const keyboardState = this.keyboardController.getState();
+    const keyboardAimPoint = keyboardState.focused ? keyboardState.point : null;
+    const visibleAimPoint = this.aimPoint ?? keyboardAimPoint;
+    if (
+      visibleAimPoint &&
+      (this.inputController.getState().phase === 'AIMING' || keyboardAimPoint !== null)
+    ) {
       const turret = getPlayerTurret();
-      graphics.lineStyle(2, this.playerColor, 0.85);
-      graphics.lineBetween(turret.x, turret.y, this.aimPoint.x, this.aimPoint.y);
-      graphics.strokeCircle(this.aimPoint.x, this.aimPoint.y, 12);
+      const keyboardAim = this.aimPoint === null && keyboardAimPoint !== null;
+      graphics.lineStyle(2, this.playerColor, keyboardAim ? 0.6 : 0.85);
+      graphics.lineBetween(turret.x, turret.y, visibleAimPoint.x, visibleAimPoint.y);
+      graphics.strokeCircle(visibleAimPoint.x, visibleAimPoint.y, keyboardAim ? 14 : 12);
+      if (keyboardAim) {
+        graphics.lineBetween(
+          visibleAimPoint.x - 20,
+          visibleAimPoint.y,
+          visibleAimPoint.x + 20,
+          visibleAimPoint.y,
+        );
+        graphics.lineBetween(
+          visibleAimPoint.x,
+          visibleAimPoint.y - 20,
+          visibleAimPoint.x,
+          visibleAimPoint.y + 20,
+        );
+      }
     }
 
     this.coreText.setVisible(false);
@@ -348,6 +494,18 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.strokeCircle(puck.position.x, puck.position.y, puck.radius);
     }
 
+    if (this.state.match.phase === 'SUSPENDED') {
+      graphics.fillStyle(this.boardColor, 0.92);
+      graphics.fillRect(0, 0, WIDTH, HEIGHT);
+      graphics.lineStyle(3, this.lineColor, 0.8);
+      graphics.strokeRect(
+        BOARD_MARGIN,
+        BOARD_MARGIN,
+        WIDTH - BOARD_MARGIN * 2,
+        HEIGHT - BOARD_MARGIN * 2,
+      );
+    }
+
     const seconds = Math.max(0, Math.ceil(secondsRemaining(this.state)));
     this.hudText.setPosition(BOARD_MARGIN + 8, 4);
     this.hudText.setText(
@@ -363,6 +521,10 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (phase === 'GOAL_PAUSE') notices.push('GOAL');
     if (phase === 'OVERTIME_NOTICE') notices.push('延長15秒・先に1点');
     if (phase === 'OVERTIME') notices.push('延長・先に1点');
+    if (phase === 'SUSPENDED') notices.push('一時停止：EnterまたはSpaceで再開');
+    if (phase === 'COUNTDOWN') {
+      notices.push(`再開まで ${Math.ceil(this.state.match.resumeCountdownTicks / FIXED_HZ)}秒`);
+    }
     if (phase === 'RESULT') notices.push('結果を表示中');
     if (phase === 'PLAYING') {
       const pressure = this.state.noScore;
@@ -391,7 +553,11 @@ class TechnicalProbeScene extends Phaser.Scene {
       notices.push('充電中');
     }
     if (this.canAim()) {
-      notices.push('撃てる：盤面を触って狙う');
+      notices.push(
+        this.keyboardController.getState().focused
+          ? '撃てる：矢印で狙い、Enter／Spaceで発射'
+          : '撃てる：盤面を触って狙う',
+      );
     }
     const notice = notices.join('｜');
     this.noticeText.setText(notice);
@@ -521,4 +687,9 @@ export function mountTechnicalProbe(
       pixelArt: false,
     },
   });
+}
+
+export function toggleTechnicalProbePause(game: Phaser.Game): void {
+  const scene = game.scene.getScene('technical-probe');
+  if (scene instanceof TechnicalProbeScene) scene.togglePause();
 }
