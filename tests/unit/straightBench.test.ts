@@ -119,6 +119,26 @@ describe('straight bench simulation', () => {
     expect(bounced.pucks[0]?.velocity.y).toBeGreaterThan(-360);
   });
 
+  it('反射板の裏側から当たっても、パックは反射後に張り付かない', () => {
+    const state = createStraightBenchState(20260814, 90, 'practice', 'ricochet-lane');
+    const nearRail = {
+      ...state,
+      pucks: [
+        {
+          ...state.pucks[0]!,
+          position: { x: 90, y: 210 },
+          velocity: { x: 0, y: 360 },
+        },
+      ],
+    };
+
+    const bounced = stepStraightBench(nearRail, 7);
+
+    expect(bounced.pucks[0]?.velocity.x).toBeLessThan(0);
+    expect(Math.abs(bounced.pucks[0]?.velocity.y ?? 0)).toBeLessThan(30);
+    expect(bounced.pucks[0]?.position.y).toBeLessThan(250);
+  });
+
   it('弾が高速でもパックを通り抜けず、命中した方向へ押す', () => {
     const fired = firePlayerShot(createStraightBenchState(), { x: 180, y: 320 });
     const afterHit = stepStraightBench(fired, 40);
