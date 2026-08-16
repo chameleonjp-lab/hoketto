@@ -5,6 +5,9 @@ import { PointerInputController, type PointerInputEvent } from './pointerInput';
 import {
   BULLET_RADIUS,
   FIXED_HZ,
+  NO_SCORE_EXPANSION_SECONDS,
+  NO_SCORE_NOTICE_SECONDS,
+  NO_SCORE_PULSE_SECONDS,
   PUCK_RADIUS,
   SHOT_COOLDOWN_TICKS,
   STRAIGHT_BENCH_HEIGHT,
@@ -13,6 +16,7 @@ import {
   firePlayerShot,
   getCpuTurret,
   getCpuTurretReadiness,
+  getGoalOpeningBounds,
   getPlayerTurret,
   getPlayerTurretReadiness,
   secondsRemaining,
@@ -260,6 +264,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.drawGoal(graphics, 'top');
     this.drawGoal(graphics, 'bottom');
     this.drawObstacles(graphics);
+    this.drawNoScorePressure(graphics);
     this.drawTurret(graphics, getCpuTurret(), this.cpuColor, false);
     this.drawTurret(graphics, getPlayerTurret(), this.playerColor, true);
 
@@ -354,28 +359,41 @@ class TechnicalProbeScene extends Phaser.Scene {
     );
 
     const phase = this.state.match.phase;
-    let notice = '';
-    if (phase === 'GOAL_PAUSE') notice = 'GOAL';
-    if (phase === 'OVERTIME_NOTICE') notice = '延長15秒・先に1点';
-    if (phase === 'OVERTIME') notice = '延長・先に1点';
-    if (phase === 'RESULT') {
-      notice = '結果を表示中';
+    const notices: string[] = [];
+    if (phase === 'GOAL_PAUSE') notices.push('GOAL');
+    if (phase === 'OVERTIME_NOTICE') notices.push('延長15秒・先に1点');
+    if (phase === 'OVERTIME') notices.push('延長・先に1点');
+    if (phase === 'RESULT') notices.push('結果を表示中');
+    if (phase === 'PLAYING') {
+      const pressure = this.state.noScore;
+      if (
+        pressure.ticksSinceGoal >= NO_SCORE_NOTICE_SECONDS * FIXED_HZ &&
+        pressure.ticksSinceGoal < NO_SCORE_EXPANSION_SECONDS * FIXED_HZ
+      ) {
+        notices.push('ゴール拡大予告：あと1秒');
+      } else if (pressure.goalExpanded) {
+        notices.push('ゴール拡大中');
+      }
+      if (
+        pressure.ticksSinceGoal >= NO_SCORE_PULSE_SECONDS * FIXED_HZ - FIXED_HZ &&
+        pressure.nextPulseTicks > 0 &&
+        pressure.nextPulseTicks <= FIXED_HZ
+      ) {
+        notices.push(`中央パルス予告：あと${Math.ceil(pressure.nextPulseTicks / FIXED_HZ)}秒`);
+      }
+      if (pressure.pulseTicksRemaining > 0) notices.push('中央パルス');
     }
-    if (this.state.core.phase === 'RESERVED') {
-      notice = '2点コア予告：あと2秒';
-    }
+    if (this.state.core.phase === 'RESERVED') notices.push('2点コア予告：あと2秒');
     if (
       this.inputController.getState().phase === 'CHARGING' &&
       (phase === 'PLAYING' || phase === 'OVERTIME')
     ) {
-      notice = '充電中';
+      notices.push('充電中');
     }
     if (this.canAim()) {
-      notice =
-        this.state.core.phase === 'RESERVED'
-          ? '2点コア予告：あと2秒｜撃てる：盤面を触って狙う'
-          : '撃てる：盤面を触って狙う';
+      notices.push('撃てる：盤面を触って狙う');
     }
+    const notice = notices.join('｜');
     this.noticeText.setText(notice);
     this.noticeText.setVisible(notice.length > 0);
   }
@@ -383,11 +401,12 @@ class TechnicalProbeScene extends Phaser.Scene {
   private drawGoal(graphics: Phaser.GameObjects.Graphics, side: 'top' | 'bottom'): void {
     const y = side === 'top' ? BOARD_MARGIN : HEIGHT - BOARD_MARGIN;
     const goalColor = side === 'top' ? this.cpuColor : this.playerColor;
+    const opening = getGoalOpeningBounds(this.state, side);
     graphics.lineStyle(6, goalColor, 0.9);
-    graphics.lineBetween(BOARD_MARGIN, y, 122, y);
-    graphics.lineBetween(238, y, WIDTH - BOARD_MARGIN, y);
+    graphics.lineBetween(BOARD_MARGIN, y, opening.minX, y);
+    graphics.lineBetween(opening.maxX, y, WIDTH - BOARD_MARGIN, y);
     graphics.lineStyle(3, goalColor, 0.65);
-    graphics.lineBetween(122, y, 238, y);
+    graphics.lineBetween(opening.minX, y, opening.maxX, y);
   }
 
   private drawObstacles(graphics: Phaser.GameObjects.Graphics): void {
@@ -404,6 +423,15 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.lineStyle(4, 0xffd34e, 1);
       graphics.lineBetween(segment.start.x, segment.start.y, segment.end.x, segment.end.y);
     }
+  }
+
+  private drawNoScorePressure(graphics: Phaser.GameObjects.Graphics): void {
+    const remaining = this.state.noScore.pulseTicksRemaining;
+    if (remaining <= 0) return;
+    const progress = 1 - remaining / Math.max(1, Math.round(0.35 * FIXED_HZ));
+    const radius = 24 + progress * 130;
+    graphics.lineStyle(4, 0xffd34e, Math.max(0, 1 - progress));
+    graphics.strokeCircle(WIDTH / 2, HEIGHT / 2, radius);
   }
 
   private drawCoreReservation(graphics: Phaser.GameObjects.Graphics): void {
