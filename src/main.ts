@@ -28,6 +28,7 @@ import {
   mountTechnicalProbe,
   toggleTechnicalProbePause,
   type TechnicalProbeResult,
+  type TechnicalProbePauseState,
 } from './game/TechnicalProbe';
 import { SoundController } from './audio/sound';
 import { loadAudioSettings, saveAudioSettings } from './app/audioSettings';
@@ -122,10 +123,21 @@ let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
 let tutorialWaitTimer: number | null = null;
 
-function updatePauseButton(state: 'playing' | 'paused' | 'resuming'): void {
-  gamePauseButton.disabled = state === 'resuming';
+function updatePauseButton(state: TechnicalProbePauseState): void {
+  gamePauseButton.disabled =
+    state.phase === 'resuming' ||
+    state.phase === 'invalid' ||
+    (state.phase === 'paused' && !state.canResume);
   gamePauseButton.textContent =
-    state === 'paused' ? '再開' : state === 'resuming' ? '再開中…' : '一時停止';
+    state.phase === 'invalid'
+      ? '復元できません'
+      : state.phase === 'paused'
+        ? state.canResume
+          ? '再開'
+          : '再開待ち…'
+        : state.phase === 'resuming'
+          ? '再開中…'
+          : '一時停止';
 }
 
 function clearTutorialWaitTimer(): void {
@@ -332,7 +344,7 @@ function enterSelection(): void {
 function disposeGame(): void {
   game?.destroy(true);
   game = null;
-  updatePauseButton('playing');
+  updatePauseButton({ phase: 'playing', canResume: false });
 }
 
 function handleGameResult(result: TechnicalProbeResult): void {
@@ -550,10 +562,11 @@ resultHomeButton.addEventListener('click', () => {
   playButton.focus();
 });
 
-window.addEventListener('pagehide', () => {
-  disposeGame();
+window.addEventListener('pagehide', (event) => {
   clearTutorialWaitTimer();
   resetResultButtons();
+  if (event.persisted) return;
+  disposeGame();
   soundController.dispose();
 });
 

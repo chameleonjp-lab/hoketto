@@ -8,6 +8,7 @@ import {
   advanceResumeCountdown,
   beginResume,
   createMatchState,
+  invalidateMatch,
   suspendMatch,
   type GoalEvent,
   type MatchPhase,
@@ -988,6 +989,20 @@ export function suspendStraightBench(
 export function beginStraightBenchResume(state: StraightBenchState): StraightBenchState {
   const match = beginResume(state.match);
   return match === state.match ? state : { ...state, match };
+}
+
+export function invalidateStraightBench(
+  state: StraightBenchState,
+  reason: string,
+): StraightBenchState {
+  const match = invalidateMatch(state.match, reason);
+  if (match === state.match) return state;
+  return {
+    ...state,
+    match,
+    bullets: [],
+    invalidReason: reason,
+  };
 }
 
 export function getPlayerTurretReadiness(state: StraightBenchState): TurretReadiness {

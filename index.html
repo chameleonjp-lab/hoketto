@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』" />
-    <title>ホケット | P3 盤面試作</title>
+    <title>ホケット | P4 中断復帰試作</title>
   </head>
   <body>
     <main id="app" aria-labelledby="page-title">
       <section class="shell">
-        <p class="eyebrow">P3 盤面試作</p>
+        <p class="eyebrow">P4 中断復帰試作</p>
         <h1 id="page-title">ホケット</h1>
         <p class="lead">弾でパックを動かし、相手ゴールを狙う縦画面のブラウザゲームです。</p>
 
@@ -19,7 +19,9 @@
           <p class="flow-copy">下から弾を撃ち、白いパックを上の相手ゴールへ入れます。</p>
           <div class="status-panel" aria-live="polite">
             <strong>いま遊べる範囲</strong>
-            <span>3盤面・弾・パック・ゴール・得点・30秒／90秒の固定更新・両砲台の状態表示</span>
+            <span
+              >3盤面・弾・パック・ゴール・得点・30秒／90秒の固定更新・両砲台の状態表示・システム中断</span
+            >
           </div>
           <p id="home-progress-note" class="settings-note" role="status" aria-live="polite"></p>
           <div class="flow-actions">
@@ -197,11 +199,13 @@
           </div>
           <div class="status-panel" aria-live="polite">
             <strong>操作</strong>
-            <span>盤面を触って狙い、指を離して発射します。結果からは同じ盤面を再戦できます。</span>
+            <span
+              >盤面を触って狙い、指を離して発射します。画面非表示や向き変更では自動停止し、条件が戻った後に明示操作で再開します。</span
+            >
           </div>
           <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
           <p class="caption">
-            ストレート・ベンチ、ツイン・ブロック、リフレクト・レーンの試作です。CPUも同じ弾速・命中規則で自動射撃し、れんしゅうとふつうで反応時間と先読みを変えます。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。音は設定画面で個別に有効化できますが、初期状態は無音です。
+            ストレート・ベンチ、ツイン・ブロック、リフレクト・レーンの試作です。CPUも同じ弾速・命中規則で自動射撃し、れんしゅうとふつうで反応時間と先読みを変えます。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。画面非表示、横向き、表示領域変更、描画復元中は時計と物理を止め、縦向き・表示・描画が戻った後の「再開」操作で3秒カウントを始めます。音は設定画面で個別に有効化できますが、初期状態は無音です。
           </p>
         </section>
 
