@@ -1,4 +1,4 @@
-import { STRAIGHT_BENCH } from '../config/boards';
+import { getBoardDefinition, STRAIGHT_BENCH, type PlayableBoardId } from '../config/boards';
 import {
   MATCH_SECONDS,
   OVERTIME_SECONDS,
@@ -9,8 +9,15 @@ import {
   type MatchPhase,
   type MatchState,
 } from '../domain/match';
-import type { Point, Team } from '../domain/types';
-import { clampVectorMagnitude, sweptCircleAgainstCircle } from '../physics/geometry';
+import type { Aabb, Point, Team } from '../domain/types';
+import {
+  clampVectorMagnitude,
+  reflectVector,
+  sweptCircleAgainstAabb,
+  sweptCircleAgainstCircle,
+  sweptCircleAgainstSegment,
+  type SweepHit,
+} from '../physics/geometry';
 
 export const STRAIGHT_BENCH_WIDTH = STRAIGHT_BENCH.width;
 export const STRAIGHT_BENCH_HEIGHT = STRAIGHT_BENCH.height;
@@ -60,6 +67,7 @@ export type GoalResumePhase = 'PLAYING' | 'OVERTIME' | 'OVERTIME_NOTICE' | 'RESU
 
 export interface StraightBenchState {
   readonly durationSeconds: number;
+  readonly board: PlayableBoardId;
   readonly difficulty: CpuDifficulty;
   readonly match: MatchState;
   readonly pucks: readonly PuckState[];
@@ -146,8 +154,12 @@ function rotate(vector: Point, radians: number): Point {
   };
 }
 
-function goalOpeningContainsX(x: number): boolean {
-  const goal = STRAIGHT_BENCH.goals[0];
+function boardFor(state: StraightBenchState): ReturnType<typeof getBoardDefinition> {
+  return getBoardDefinition(state.board);
+}
+
+function goalOpeningContainsX(state: StraightBenchState, x: number): boolean {
+  const goal = boardFor(state).goals[0];
   return (
     x >= goal.openingMinX + GOAL_OPENING_PADDING && x <= goal.openingMaxX - GOAL_OPENING_PADDING
   );
@@ -165,24 +177,29 @@ function crossingAtY(start: Point, end: Point, y: number): Point | null {
   };
 }
 
-function crossedGoal(start: Point, end: Point, radius: number): Team | null {
-  const topGoal = STRAIGHT_BENCH.goals[0];
-  const bottomGoal = STRAIGHT_BENCH.goals[1];
+function crossedGoal(
+  state: StraightBenchState,
+  start: Point,
+  end: Point,
+  radius: number,
+): Team | null {
+  const [topGoal, bottomGoal] = boardFor(state).goals;
   const topThreshold = topGoal.scorePlane - radius;
   const bottomThreshold = bottomGoal.scorePlane + radius;
 
   if (start.y > topThreshold && end.y <= topThreshold) {
     const crossing = crossingAtY(start, end, topThreshold);
-    if (crossing && goalOpeningContainsX(crossing.x)) return topGoal.scoreFor;
+    if (crossing && goalOpeningContainsX(state, crossing.x)) return topGoal.scoreFor;
   }
   if (start.y < bottomThreshold && end.y >= bottomThreshold) {
     const crossing = crossingAtY(start, end, bottomThreshold);
-    if (crossing && goalOpeningContainsX(crossing.x)) return bottomGoal.scoreFor;
+    if (crossing && goalOpeningContainsX(state, crossing.x)) return bottomGoal.scoreFor;
   }
   return null;
 }
 
 function bounceInsideBoard(
+  state: StraightBenchState,
   position: Point,
   velocity: Point,
   radius: number,
@@ -201,12 +218,12 @@ function bounceInsideBoard(
     nextVelocity = { ...nextVelocity, x: -Math.abs(nextVelocity.x) };
   }
 
-  if (nextPosition.y < radius && !goalOpeningContainsX(nextPosition.x)) {
+  if (nextPosition.y < radius && !goalOpeningContainsX(state, nextPosition.x)) {
     nextPosition = { ...nextPosition, y: radius };
     nextVelocity = { ...nextVelocity, y: Math.abs(nextVelocity.y) };
   } else if (
     nextPosition.y > STRAIGHT_BENCH_HEIGHT - radius &&
-    !goalOpeningContainsX(nextPosition.x)
+    !goalOpeningContainsX(state, nextPosition.x)
   ) {
     nextPosition = { ...nextPosition, y: STRAIGHT_BENCH_HEIGHT - radius };
     nextVelocity = { ...nextVelocity, y: -Math.abs(nextVelocity.y) };
@@ -215,12 +232,16 @@ function bounceInsideBoard(
   return { position: nextPosition, velocity: nextVelocity };
 }
 
-function resetPuck(id: number): PuckState {
+function resetPuck(state: StraightBenchState, id: number): PuckState {
+  const template = boardFor(state).initialPucks[(id - 1) % boardFor(state).initialPucks.length] ?? {
+    center: { x: STRAIGHT_BENCH_WIDTH / 2, y: STRAIGHT_BENCH_HEIGHT / 2 },
+    radius: PUCK_RADIUS,
+  };
   return {
     id,
-    position: { x: STRAIGHT_BENCH_WIDTH / 2, y: STRAIGHT_BENCH_HEIGHT / 2 },
+    position: template.center,
     velocity: { x: 0, y: 0 },
-    radius: PUCK_RADIUS,
+    radius: template.radius,
     active: true,
   };
 }
@@ -228,7 +249,7 @@ function resetPuck(id: number): PuckState {
 function resetForNextRound(state: StraightBenchState): StraightBenchState {
   return {
     ...state,
-    pucks: state.pucks.map((puck) => resetPuck(puck.id)),
+    pucks: state.pucks.map((puck) => resetPuck(state, puck.id)),
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
@@ -274,7 +295,7 @@ function applyPhysicalGoals(
   return {
     ...state,
     match,
-    pucks: state.pucks.map((puck) => resetPuck(puck.id)),
+    pucks: state.pucks.map((puck) => resetPuck(state, puck.id)),
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
@@ -355,6 +376,11 @@ function moveBullets(state: StraightBenchState): {
       }
     }
 
+    const obstacleHit = earliestObstacleHit(state, bullet.position, nextPosition, bullet.radius);
+    if (obstacleHit && obstacleHit.time <= hitTime) {
+      continue;
+    }
+
     if (hitPuckIndex >= 0) {
       const puck = pucks[hitPuckIndex];
       if (puck) {
@@ -388,10 +414,76 @@ function moveBullets(state: StraightBenchState): {
   return { bullets, pucks };
 }
 
-function movePucks(pucks: readonly PuckState[]): {
+function earliestObstacleHit(
+  state: StraightBenchState,
+  start: Point,
+  end: Point,
+  movingRadius: number,
+): SweepHit | null {
+  const hits: SweepHit[] = [];
+  const board = boardFor(state);
+  for (const box of board.staticBoxes) {
+    const hit = sweptCircleAgainstAabb(start, end, movingRadius, box);
+    if (hit) hits.push(hit);
+  }
+  for (const circle of board.staticCircles) {
+    const hit = sweptCircleAgainstCircle(start, end, movingRadius, circle);
+    if (hit) hits.push(hit);
+  }
+  for (const segment of board.staticSegments) {
+    const hit = sweptCircleAgainstSegment(start, end, movingRadius, segment);
+    if (hit) hits.push(hit);
+  }
+  return hits.reduce<SweepHit | null>(
+    (earliest, hit) => (earliest === null || hit.time < earliest.time ? hit : earliest),
+    null,
+  );
+}
+
+function bounceFromBoxes(
+  state: StraightBenchState,
+  start: Point,
+  end: Point,
+  velocity: Point,
+  radius: number,
+): { readonly position: Point; readonly velocity: Point } {
+  let earliest: { readonly hit: SweepHit; readonly box: Aabb } | null = null;
+  for (const box of boardFor(state).staticBoxes) {
+    const hit = sweptCircleAgainstAabb(start, end, radius, box);
+    if (hit && (earliest === null || hit.time < earliest.hit.time)) earliest = { hit, box };
+  }
+  if (!earliest) return { position: end, velocity };
+
+  const { hit, box } = earliest;
+  const expanded = {
+    left: box.minX - radius,
+    right: box.maxX + radius,
+    top: box.minY - radius,
+    bottom: box.maxY + radius,
+  };
+  const candidates = [
+    { distance: Math.abs(hit.point.x - expanded.left), normal: { x: -1, y: 0 } },
+    { distance: Math.abs(hit.point.x - expanded.right), normal: { x: 1, y: 0 } },
+    { distance: Math.abs(hit.point.y - expanded.top), normal: { x: 0, y: -1 } },
+    { distance: Math.abs(hit.point.y - expanded.bottom), normal: { x: 0, y: 1 } },
+  ];
+  const nearest = candidates.reduce((best, candidate) =>
+    candidate.distance < best.distance ? candidate : best,
+  );
+  return {
+    position: {
+      x: hit.point.x + nearest.normal.x * 0.1,
+      y: hit.point.y + nearest.normal.y * 0.1,
+    },
+    velocity: reflectVector(velocity, nearest.normal),
+  };
+}
+
+function movePucks(state: StraightBenchState): {
   readonly pucks: readonly PuckState[];
   readonly goals: readonly Team[];
 } {
+  const pucks = state.pucks;
   const nextPucks: PuckState[] = [];
   const goals: Team[] = [];
 
@@ -403,13 +495,19 @@ function movePucks(pucks: readonly PuckState[]): {
     const start = puck.position;
     const velocity = clampVectorMagnitude(puck.velocity, MAX_PUCK_SPEED);
     const end = add(start, scale(velocity, 1 / TICKS_PER_SECOND));
-    const goal = crossedGoal(start, end, puck.radius);
+    const goal = crossedGoal(state, start, end, puck.radius);
     if (goal) {
       goals.push(goal);
       nextPucks.push({ ...puck, active: false, position: end, velocity: { x: 0, y: 0 } });
       continue;
     }
-    const bounced = bounceInsideBoard(end, velocity, puck.radius);
+    const obstacleBounce = bounceFromBoxes(state, start, end, velocity, puck.radius);
+    const bounced = bounceInsideBoard(
+      state,
+      obstacleBounce.position,
+      obstacleBounce.velocity,
+      puck.radius,
+    );
     nextPucks.push({
       ...puck,
       position: bounced.position,
@@ -436,7 +534,7 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
       ? fireCpuShot(preparedState, chooseCpuTarget(preparedState))
       : preparedState;
   const movedBullets = moveBullets(cpuReadyState);
-  const movedPucks = movePucks(movedBullets.pucks);
+  const movedPucks = movePucks({ ...cpuReadyState, pucks: movedBullets.pucks });
   const movedState: StraightBenchState = {
     ...cpuReadyState,
     match: state.match,
@@ -466,12 +564,21 @@ export function createStraightBenchState(
   seed = 1,
   durationSeconds = MATCH_SECONDS,
   difficulty: CpuDifficulty = 'practice',
+  board: PlayableBoardId = 'straight-bench',
 ): StraightBenchState {
+  const definition = getBoardDefinition(board);
   return {
     durationSeconds,
+    board,
     difficulty,
     match: createMatchState(seed, durationSeconds),
-    pucks: [resetPuck(1)],
+    pucks: definition.initialPucks.map((puck, index) => ({
+      id: index + 1,
+      position: puck.center,
+      velocity: { x: 0, y: 0 },
+      radius: puck.radius,
+      active: true,
+    })),
     bullets: [],
     cooldownTicks: 0,
     cpuCooldownTicks: 0,
@@ -559,7 +666,12 @@ export function getCpuTurretReadiness(state: StraightBenchState): TurretReadines
 
 export function createStraightBenchRematch(state: StraightBenchState): StraightBenchState {
   if (state.match.phase !== 'RESULT') return state;
-  return createStraightBenchState(state.match.seed + 1, state.durationSeconds, state.difficulty);
+  return createStraightBenchState(
+    state.match.seed + 1,
+    state.durationSeconds,
+    state.difficulty,
+    state.board,
+  );
 }
 
 export function stepStraightBench(state: StraightBenchState, ticks = 1): StraightBenchState {
