@@ -370,6 +370,12 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.lineStyle(3, this.lineColor, 0.85);
       graphics.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
     }
+    for (const segment of board.staticSegments) {
+      graphics.lineStyle(10, 0x102832, 1);
+      graphics.lineBetween(segment.start.x, segment.start.y, segment.end.x, segment.end.y);
+      graphics.lineStyle(4, 0xffd34e, 1);
+      graphics.lineBetween(segment.start.x, segment.start.y, segment.end.x, segment.end.y);
+    }
   }
 
   private drawTurret(
