@@ -24,7 +24,11 @@ import {
   type GameModeId,
   type AppFlowState,
 } from './app/gameFlow';
-import { mountTechnicalProbe, type TechnicalProbeResult } from './game/TechnicalProbe';
+import {
+  mountTechnicalProbe,
+  toggleTechnicalProbePause,
+  type TechnicalProbeResult,
+} from './game/TechnicalProbe';
 import { SoundController } from './audio/sound';
 import { loadAudioSettings, saveAudioSettings } from './app/audioSettings';
 import {
@@ -48,6 +52,7 @@ const selectionScreen = requireElement<HTMLElement>('#selection-screen');
 const gameScreen = requireElement<HTMLElement>('#game-screen');
 const gameBoardLabel = requireElement<HTMLElement>('#game-board-label');
 const gameRoot = requireElement<HTMLElement>('#game-root');
+const gamePauseButton = requireElement<HTMLButtonElement>('#game-pause');
 const settingsScreen = requireElement<HTMLElement>('#settings-screen');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
 const tutorialTitle = requireElement<HTMLElement>('#tutorial-title');
@@ -116,6 +121,12 @@ let progressPersistenceWarning =
 let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
 let tutorialWaitTimer: number | null = null;
+
+function updatePauseButton(state: 'playing' | 'paused' | 'resuming'): void {
+  gamePauseButton.disabled = state === 'resuming';
+  gamePauseButton.textContent =
+    state === 'paused' ? '再開' : state === 'resuming' ? '再開中…' : '一時停止';
+}
 
 function clearTutorialWaitTimer(): void {
   if (tutorialWaitTimer !== null) {
@@ -307,6 +318,7 @@ function enterGame(seed = nextSeed): void {
       onResult: handleGameResult,
       onShot: (owner) => soundController.playShot(owner),
       onGoal: (team) => soundController.playGoal(team),
+      onPauseChange: updatePauseButton,
     });
   }
 }
@@ -320,6 +332,7 @@ function enterSelection(): void {
 function disposeGame(): void {
   game?.destroy(true);
   game = null;
+  updatePauseButton('playing');
 }
 
 function handleGameResult(result: TechnicalProbeResult): void {
@@ -338,6 +351,10 @@ function handleGameResult(result: TechnicalProbeResult): void {
 }
 
 playButton.addEventListener('click', enterSelection);
+
+gamePauseButton.addEventListener('click', () => {
+  if (game) toggleTechnicalProbePause(game);
+});
 
 settingsButton.addEventListener('click', () => {
   settingsOpen = true;
