@@ -5,6 +5,7 @@ import { PointerInputController, type PointerInputEvent } from './pointerInput';
 import {
   BULLET_RADIUS,
   FIXED_HZ,
+  PUCK_RADIUS,
   SHOT_COOLDOWN_TICKS,
   STRAIGHT_BENCH_HEIGHT,
   STRAIGHT_BENCH_WIDTH,
@@ -52,6 +53,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
+  private coreText!: Phaser.GameObjects.Text;
   private noticeText!: Phaser.GameObjects.Text;
   private readonly inputController = new PointerInputController({
     board: {
@@ -93,6 +95,14 @@ class TechnicalProbeScene extends Phaser.Scene {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '11px',
     });
+    this.coreText = this.add.text(0, 0, '', {
+      color: '#07151d',
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: '14px',
+      fontStyle: 'bold',
+    });
+    this.coreText.setOrigin(0.5);
+    this.coreText.setVisible(false);
     this.noticeText = this.add.text(WIDTH / 2, HEIGHT / 2, '', {
       color: '#f4fafc',
       fontFamily: 'system-ui, sans-serif',
@@ -260,6 +270,9 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.strokeCircle(this.aimPoint.x, this.aimPoint.y, 12);
     }
 
+    this.coreText.setVisible(false);
+    this.drawCoreReservation(graphics);
+
     for (const bullet of this.state.bullets) {
       const color = bullet.owner === 'cpu' ? this.cpuColor : this.playerColor;
       graphics.fillStyle(color, 1);
@@ -317,6 +330,13 @@ class TechnicalProbeScene extends Phaser.Scene {
 
     for (const puck of this.state.pucks) {
       if (!puck.active) continue;
+      if (puck.points === 2) {
+        this.drawCorePuck(graphics, puck.position.x, puck.position.y);
+        this.coreText.setPosition(puck.position.x, puck.position.y);
+        this.coreText.setText('2');
+        this.coreText.setVisible(true);
+        continue;
+      }
       graphics.fillStyle(this.puckColor, 1);
       graphics.fillCircle(puck.position.x, puck.position.y, puck.radius);
       graphics.lineStyle(2, 0x102832, 1);
@@ -341,13 +361,21 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (phase === 'RESULT') {
       notice = '結果を表示中';
     }
+    if (this.state.core.phase === 'RESERVED') {
+      notice = '2点コア予告：あと2秒';
+    }
     if (
       this.inputController.getState().phase === 'CHARGING' &&
       (phase === 'PLAYING' || phase === 'OVERTIME')
     ) {
       notice = '充電中';
     }
-    if (this.canAim()) notice = '撃てる：盤面を触って狙う';
+    if (this.canAim()) {
+      notice =
+        this.state.core.phase === 'RESERVED'
+          ? '2点コア予告：あと2秒｜撃てる：盤面を触って狙う'
+          : '撃てる：盤面を触って狙う';
+    }
     this.noticeText.setText(notice);
     this.noticeText.setVisible(notice.length > 0);
   }
@@ -376,6 +404,32 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.lineStyle(4, 0xffd34e, 1);
       graphics.lineBetween(segment.start.x, segment.start.y, segment.end.x, segment.end.y);
     }
+  }
+
+  private drawCoreReservation(graphics: Phaser.GameObjects.Graphics): void {
+    if (this.state.core.phase !== 'RESERVED' || !this.state.core.position) return;
+    const { x, y } = this.state.core.position;
+    graphics.lineStyle(8, 0x102832, 1);
+    graphics.strokeCircle(x, y, PUCK_RADIUS + 8);
+    graphics.lineStyle(3, 0xffd34e, 1);
+    graphics.strokeCircle(x, y, PUCK_RADIUS + 8);
+    this.coreText.setPosition(x, y);
+    this.coreText.setText('2');
+    this.coreText.setVisible(true);
+  }
+
+  private drawCorePuck(graphics: Phaser.GameObjects.Graphics, x: number, y: number): void {
+    const points = Array.from({ length: 6 }, (_, index) => {
+      const angle = -Math.PI / 2 + (Math.PI / 3) * index;
+      return new Phaser.Math.Vector2(
+        x + Math.cos(angle) * PUCK_RADIUS,
+        y + Math.sin(angle) * PUCK_RADIUS,
+      );
+    });
+    graphics.fillStyle(0xffd34e, 1);
+    graphics.fillPoints(points, true, true);
+    graphics.lineStyle(2, 0x102832, 1);
+    graphics.strokePoints(points, true, true);
   }
 
   private drawTurret(

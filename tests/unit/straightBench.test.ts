@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   CPU_REACTION_TICKS,
+  CORE_ACTIVE_SECONDS,
+  CORE_NOTICE_SECONDS,
+  CORE_RESERVATION_TICKS,
   GOAL_PAUSE_TICKS,
   NORMAL_CPU_REACTION_TICKS,
   SHOT_COOLDOWN_TICKS,
@@ -137,6 +140,110 @@ describe('straight bench simulation', () => {
     expect(bounced.pucks[0]?.velocity.x).toBeLessThan(0);
     expect(Math.abs(bounced.pucks[0]?.velocity.y ?? 0)).toBeLessThan(30);
     expect(bounced.pucks[0]?.position.y).toBeLessThan(250);
+  });
+
+  it('残り17秒で予約リングを出し、15秒で2点コアへ置き換える', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice');
+    const nearCoreWindow = {
+      ...initial,
+      match: {
+        ...initial.match,
+        ticksRemaining: CORE_NOTICE_SECONDS * 120 + 1,
+      },
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+
+    const reserved = stepStraightBench(nearCoreWindow, 1);
+    expect(reserved.core.phase).toBe('RESERVED');
+    expect(reserved.core.position).not.toBeNull();
+    expect(reserved.pucks).toHaveLength(1);
+
+    const active = stepStraightBench(reserved, CORE_RESERVATION_TICKS);
+    expect(active.match.ticksRemaining).toBe(CORE_ACTIVE_SECONDS * 120);
+    expect(active.core.phase).toBe('ACTIVE');
+    expect(active.pucks.filter((puck) => puck.points === 2)).toHaveLength(1);
+  });
+
+  it('予約リングはパックだけを跳ね返し、弾は通り抜ける', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice');
+    const reserved = stepStraightBench(
+      {
+        ...initial,
+        match: { ...initial.match, ticksRemaining: CORE_NOTICE_SECONDS * 120 + 1 },
+        cpuCooldownTicks: 100_000,
+        cpuThinkTicks: 100_000,
+      },
+      1,
+    );
+    const target = reserved.core.position ?? { x: 90, y: 320 };
+    const fired = firePlayerShot(reserved, target);
+    const afterRing = stepStraightBench(fired, 25);
+
+    expect(afterRing.bullets.filter((bullet) => bullet.owner === 'player')).toHaveLength(1);
+    expect(afterRing.pucks).toHaveLength(1);
+  });
+
+  it('2点コアがゴールへ入ると2点を加算する', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice');
+    const active = {
+      ...initial,
+      core: { phase: 'ACTIVE' as const, position: { x: 90, y: 320 }, candidateIndex: 0 },
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          points: 1 as const,
+        },
+        {
+          id: 2,
+          position: { x: 180, y: 30 },
+          velocity: { x: 0, y: -300 },
+          radius: 14,
+          active: true,
+          points: 2 as const,
+        },
+      ],
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+
+    const scored = stepStraightBench(active, 10);
+
+    expect(scored.match.playerScore).toBe(2);
+    expect(scored.match.lastGoalPoints).toBe(2);
+    expect(scored.match.phase).toBe('GOAL_PAUSE');
+    expect(scored.pucks.filter((puck) => puck.points === 2)).toHaveLength(1);
+
+    const resumed = stepStraightBench(scored, GOAL_PAUSE_TICKS);
+    expect(resumed.core.phase).toBe('ACTIVE');
+    expect(resumed.pucks.filter((puck) => puck.points === 2)).toHaveLength(1);
+  });
+
+  it('同点延長へ入る時は予約リングと2点コアを除く', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice');
+    const notice = {
+      ...initial,
+      match: { ...initial.match, phase: 'OVERTIME_NOTICE' as const },
+      core: { phase: 'ACTIVE' as const, position: { x: 90, y: 320 }, candidateIndex: 0 },
+      pucks: [
+        { ...initial.pucks[0]!, points: 1 as const },
+        {
+          id: 2,
+          position: { x: 90, y: 320 },
+          velocity: { x: 0, y: 0 },
+          radius: 14,
+          active: true,
+          points: 2 as const,
+        },
+      ],
+      overtimeNoticeTicks: 1,
+    };
+
+    const overtime = stepStraightBench(notice, 1);
+
+    expect(overtime.match.phase).toBe('OVERTIME');
+    expect(overtime.core.phase).toBe('INACTIVE');
+    expect(overtime.pucks).toHaveLength(1);
   });
 
   it('弾が高速でもパックを通り抜けず、命中した方向へ押す', () => {

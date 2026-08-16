@@ -6,10 +6,11 @@ import {
   advanceClock,
   applyGoals,
   createMatchState,
+  type GoalEvent,
   type MatchPhase,
   type MatchState,
 } from '../domain/match';
-import type { Aabb, Point, Segment, Team } from '../domain/types';
+import type { Aabb, Circle, Point, Segment, Team } from '../domain/types';
 import {
   clampVectorMagnitude,
   reflectVector,
@@ -32,6 +33,9 @@ export const RESUME_COUNTDOWN_TICKS = 3 * TICKS_PER_SECOND;
 export const PUCK_HIT_IMPULSE = 360;
 export const MAX_PUCK_SPEED = 600;
 export const PUCK_DECELERATION_PER_SECOND = 90;
+export const CORE_NOTICE_SECONDS = 17;
+export const CORE_ACTIVE_SECONDS = 15;
+export const CORE_RESERVATION_TICKS = 2 * TICKS_PER_SECOND;
 export type CpuDifficulty = 'practice' | 'normal';
 
 export const PRACTICE_CPU_REACTION_TICKS = Math.round(0.48 * TICKS_PER_SECOND);
@@ -45,6 +49,15 @@ const PLAYER_TURRET: Point = { x: STRAIGHT_BENCH_WIDTH / 2, y: 580 };
 const CPU_TURRET: Point = { x: STRAIGHT_BENCH_WIDTH / 2, y: 60 };
 const GOAL_OPENING_PADDING = PUCK_RADIUS;
 const GOAL_THRESHOLD_EPSILON = 1e-9;
+const CORE_RADIUS = PUCK_RADIUS;
+
+export type CorePhase = 'INACTIVE' | 'RESERVED' | 'ACTIVE';
+
+export interface CoreState {
+  readonly phase: CorePhase;
+  readonly position: Point | null;
+  readonly candidateIndex: number | null;
+}
 
 export interface PuckState {
   readonly id: number;
@@ -52,6 +65,7 @@ export interface PuckState {
   readonly velocity: Point;
   readonly radius: number;
   readonly active: boolean;
+  readonly points?: 1 | 2;
 }
 
 export interface BulletState {
@@ -72,6 +86,7 @@ export interface StraightBenchState {
   readonly difficulty: CpuDifficulty;
   readonly match: MatchState;
   readonly pucks: readonly PuckState[];
+  readonly core: CoreState;
   readonly bullets: readonly BulletState[];
   readonly cooldownTicks: number;
   readonly cpuCooldownTicks: number;
@@ -159,6 +174,105 @@ function boardFor(state: StraightBenchState): ReturnType<typeof getBoardDefiniti
   return getBoardDefinition(state.board);
 }
 
+function inactiveCore(): CoreState {
+  return { phase: 'INACTIVE', position: null, candidateIndex: null };
+}
+
+function coreReservationCircle(state: StraightBenchState): Circle | null {
+  if (state.core.phase !== 'RESERVED' || !state.core.position) return null;
+  return { center: state.core.position, radius: CORE_RADIUS };
+}
+
+function candidateIsClear(state: StraightBenchState, candidate: Point): boolean {
+  return state.pucks.every((puck) => {
+    if (!puck.active) return true;
+    const minimumDistance = puck.radius + CORE_RADIUS;
+    return (
+      (candidate.x - puck.position.x) ** 2 + (candidate.y - puck.position.y) ** 2 >=
+      minimumDistance ** 2
+    );
+  });
+}
+
+function chooseCoreCandidate(
+  state: StraightBenchState,
+): { readonly index: number; readonly position: Point } | null {
+  const candidates = boardFor(state)
+    .coreCandidates.map((position, index) => ({ position, index }))
+    .filter(({ position }) => candidateIsClear(state, position));
+  if (candidates.length === 0) return null;
+  const selected = candidates[Math.abs(state.match.seed) % candidates.length];
+  return selected ?? null;
+}
+
+function startsCoreReservation(state: StraightBenchState, nextMatch: MatchState): boolean {
+  const noticeTicks = CORE_NOTICE_SECONDS * TICKS_PER_SECOND;
+  const activeTicks = CORE_ACTIVE_SECONDS * TICKS_PER_SECOND;
+  return (
+    state.core.phase === 'INACTIVE' &&
+    state.match.ticksRemaining > noticeTicks &&
+    nextMatch.ticksRemaining <= noticeTicks &&
+    nextMatch.ticksRemaining > activeTicks
+  );
+}
+
+function prepareCoreReservation(
+  state: StraightBenchState,
+  nextMatch: MatchState,
+): StraightBenchState {
+  if (!startsCoreReservation(state, nextMatch)) return state;
+  const candidate = chooseCoreCandidate(state);
+  if (!candidate) return state;
+  return {
+    ...state,
+    core: {
+      phase: 'RESERVED',
+      position: candidate.position,
+      candidateIndex: candidate.index,
+    },
+  };
+}
+
+function addCorePuck(state: StraightBenchState): readonly PuckState[] {
+  if (state.core.phase !== 'ACTIVE' || !state.core.position) return state.pucks;
+  if (state.pucks.some((puck) => puck.points === 2)) return state.pucks;
+  return [
+    ...state.pucks,
+    {
+      id: Math.max(0, ...state.pucks.map((puck) => puck.id)) + 1,
+      position: state.core.position,
+      velocity: { x: 0, y: 0 },
+      radius: CORE_RADIUS,
+      active: true,
+      points: 2,
+    },
+  ];
+}
+
+function activateCoreIfDue(state: StraightBenchState, nextMatch: MatchState): StraightBenchState {
+  const activeTicks = CORE_ACTIVE_SECONDS * TICKS_PER_SECOND;
+  if (
+    state.core.phase !== 'RESERVED' ||
+    nextMatch.ticksRemaining > activeTicks ||
+    nextMatch.phase === 'RESULT' ||
+    nextMatch.phase === 'OVERTIME_NOTICE'
+  ) {
+    return state;
+  }
+  const activeState: StraightBenchState = {
+    ...state,
+    core: { ...state.core, phase: 'ACTIVE' },
+  };
+  return { ...activeState, pucks: addCorePuck(activeState) };
+}
+
+function syncActiveCorePosition(state: StraightBenchState): StraightBenchState {
+  if (state.core.phase !== 'ACTIVE') return state;
+  const corePuck = state.pucks.find((puck) => puck.points === 2 && puck.active);
+  if (!corePuck) return state;
+  return { ...state, core: { ...state.core, position: corePuck.position } };
+}
+
 function goalOpeningContainsX(state: StraightBenchState, x: number): boolean {
   const goal = boardFor(state).goals[0];
   return (
@@ -244,13 +358,31 @@ function resetPuck(state: StraightBenchState, id: number): PuckState {
     velocity: { x: 0, y: 0 },
     radius: template.radius,
     active: true,
+    points: 1,
   };
+}
+
+function resetPucksForRound(state: StraightBenchState): readonly PuckState[] {
+  const basePucks = boardFor(state).initialPucks.map((_, index) => resetPuck(state, index + 1));
+  return state.core.phase === 'ACTIVE' && state.core.position
+    ? [
+        ...basePucks,
+        {
+          id: basePucks.length + 1,
+          position: state.core.position,
+          velocity: { x: 0, y: 0 },
+          radius: CORE_RADIUS,
+          active: true,
+          points: 2 as const,
+        },
+      ]
+    : basePucks;
 }
 
 function resetForNextRound(state: StraightBenchState): StraightBenchState {
   return {
     ...state,
-    pucks: state.pucks.map((puck) => resetPuck(state, puck.id)),
+    pucks: resetPucksForRound(state),
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
@@ -277,15 +409,14 @@ function goalResumePhaseFor(
 
 function applyPhysicalGoals(
   state: StraightBenchState,
-  goals: readonly Team[],
+  goals: readonly GoalEvent[],
   clockedMatch: MatchState,
 ): StraightBenchState {
   if (goals.length === 0) {
     return { ...state, match: clockedMatch };
   }
 
-  const goalEvents = goals.map((team) => ({ team, points: 1 as const }));
-  const scored = applyGoals(state.match, goalEvents);
+  const scored = applyGoals(state.match, goals);
   const goalResumePhase = goalResumePhaseFor(state.match, scored, clockedMatch);
   const match: MatchState = {
     ...scored,
@@ -296,7 +427,7 @@ function applyPhysicalGoals(
   return {
     ...state,
     match,
-    pucks: state.pucks.map((puck) => resetPuck(state, puck.id)),
+    pucks: resetPucksForRound(state),
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
@@ -341,8 +472,9 @@ function stepOvertimeNotice(state: StraightBenchState): StraightBenchState {
   if (state.overtimeNoticeTicks > 1) {
     return { ...state, overtimeNoticeTicks: state.overtimeNoticeTicks - 1 };
   }
+  const overtimeState = { ...state, core: inactiveCore() };
   return {
-    ...resetForNextRound(state),
+    ...resetForNextRound(overtimeState),
     match: {
       ...state.match,
       phase: 'OVERTIME',
@@ -524,6 +656,19 @@ function bounceFromObstacles(
       earliest = { hit, normal: segmentNormal(segment) };
     }
   }
+  const reservation = coreReservationCircle(state);
+  if (reservation) {
+    const hit = sweptCircleAgainstCircle(start, end, radius, reservation);
+    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
+      earliest = {
+        hit,
+        normal: normalize(
+          { x: hit.point.x - reservation.center.x, y: hit.point.y - reservation.center.y },
+          { x: 0, y: -1 },
+        ),
+      };
+    }
+  }
   if (!earliest) return { position: end, velocity };
 
   const normal = outwardCollisionNormal(earliest.normal, velocity);
@@ -539,11 +684,11 @@ function bounceFromObstacles(
 
 function movePucks(state: StraightBenchState): {
   readonly pucks: readonly PuckState[];
-  readonly goals: readonly Team[];
+  readonly goals: readonly GoalEvent[];
 } {
   const pucks = state.pucks;
   const nextPucks: PuckState[] = [];
-  const goals: Team[] = [];
+  const goals: GoalEvent[] = [];
 
   for (const puck of pucks) {
     if (!puck.active) {
@@ -555,7 +700,7 @@ function movePucks(state: StraightBenchState): {
     const end = add(start, scale(velocity, 1 / TICKS_PER_SECOND));
     const goal = crossedGoal(state, start, end, puck.radius);
     if (goal) {
-      goals.push(goal);
+      goals.push({ team: goal, points: puck.points ?? 1 });
       nextPucks.push({ ...puck, active: false, position: end, velocity: { x: 0, y: 0 } });
       continue;
     }
@@ -587,10 +732,11 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
     cpuCooldownTicks,
     cpuThinkTicks,
   };
+  const corePreparedState = prepareCoreReservation(preparedState, clockedMatch);
   const cpuReadyState =
     isActivePhase(clockedMatch.phase) && cpuCooldownTicks === 0 && cpuThinkTicks === 0
-      ? fireCpuShot(preparedState, chooseCpuTarget(preparedState))
-      : preparedState;
+      ? fireCpuShot(corePreparedState, chooseCpuTarget(corePreparedState))
+      : corePreparedState;
   const movedBullets = moveBullets(cpuReadyState);
   const movedPucks = movePucks({ ...cpuReadyState, pucks: movedBullets.pucks });
   const movedState: StraightBenchState = {
@@ -599,13 +745,18 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
     bullets: movedBullets.bullets,
     pucks: movedPucks.pucks,
   };
-  const scoredState = applyPhysicalGoals(movedState, movedPucks.goals, clockedMatch);
-  if (movedPucks.goals.length > 0) return scoredState;
-  if (clockedMatch.phase === 'RESULT') return { ...scoredState, bullets: [] };
+  const scoredState = applyPhysicalGoals(
+    syncActiveCorePosition(movedState),
+    movedPucks.goals,
+    clockedMatch,
+  );
+  const activatedState = activateCoreIfDue(scoredState, clockedMatch);
+  if (movedPucks.goals.length > 0) return activatedState;
+  if (clockedMatch.phase === 'RESULT') return { ...activatedState, bullets: [] };
   if (clockedMatch.phase === 'OVERTIME_NOTICE') {
-    return { ...scoredState, bullets: [], overtimeNoticeTicks: RESUME_COUNTDOWN_TICKS };
+    return { ...activatedState, bullets: [], overtimeNoticeTicks: RESUME_COUNTDOWN_TICKS };
   }
-  return scoredState;
+  return activatedState;
 }
 
 function stepOne(state: StraightBenchState): StraightBenchState {
@@ -630,12 +781,14 @@ export function createStraightBenchState(
     board,
     difficulty,
     match: createMatchState(seed, durationSeconds),
+    core: inactiveCore(),
     pucks: definition.initialPucks.map((puck, index) => ({
       id: index + 1,
       position: puck.center,
       velocity: { x: 0, y: 0 },
       radius: puck.radius,
       active: true,
+      points: 1,
     })),
     bullets: [],
     cooldownTicks: 0,
