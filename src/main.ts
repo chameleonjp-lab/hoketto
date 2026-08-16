@@ -46,6 +46,7 @@ const homeProgressNote = requireElement<HTMLElement>('#home-progress-note');
 const tutorialScreen = requireElement<HTMLElement>('#tutorial-screen');
 const selectionScreen = requireElement<HTMLElement>('#selection-screen');
 const gameScreen = requireElement<HTMLElement>('#game-screen');
+const gameBoardLabel = requireElement<HTMLElement>('#game-board-label');
 const gameRoot = requireElement<HTMLElement>('#game-root');
 const settingsScreen = requireElement<HTMLElement>('#settings-screen');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
@@ -234,6 +235,7 @@ function render(): void {
   }
 
   const selection = flow.selection;
+  gameBoardLabel.textContent = boardLabel(selection.board);
   const boardButtons: readonly [HTMLButtonElement, BoardId][] = [
     [boardStraightButton, 'straight-bench'],
     [boardTwinButton, 'twin-block'],
@@ -296,7 +298,12 @@ function enterGame(seed = nextSeed): void {
       seed,
       durationSeconds: flow.selection.mode === 'trial' ? 30 : 90,
       difficulty: flow.selection.difficulty,
-      board: flow.selection.board === 'twin-block' ? 'twin-block' : 'straight-bench',
+      board:
+        flow.selection.board === 'twin-block'
+          ? 'twin-block'
+          : flow.selection.board === 'ricochet-lane'
+            ? 'ricochet-lane'
+            : 'straight-bench',
       onResult: handleGameResult,
       onShot: (owner) => soundController.playShot(owner),
       onGoal: (team) => soundController.playGoal(team),
