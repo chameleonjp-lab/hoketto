@@ -4,6 +4,10 @@ import {
   CORE_ACTIVE_SECONDS,
   CORE_NOTICE_SECONDS,
   CORE_RESERVATION_TICKS,
+  NO_SCORE_EXPANSION_SECONDS,
+  NO_SCORE_NOTICE_SECONDS,
+  NO_SCORE_PULSE_INTERVAL_SECONDS,
+  NO_SCORE_PULSE_SECONDS,
   GOAL_PAUSE_TICKS,
   NORMAL_CPU_REACTION_TICKS,
   SHOT_COOLDOWN_TICKS,
@@ -12,6 +16,7 @@ import {
   fireCpuShot,
   firePlayerShot,
   getCpuTurretReadiness,
+  getGoalOpeningBounds,
   getPlayerTurretReadiness,
   stepStraightBench,
 } from '../../src/game/straightBench';
@@ -244,6 +249,113 @@ describe('straight bench simulation', () => {
     expect(overtime.match.phase).toBe('OVERTIME');
     expect(overtime.core.phase).toBe('INACTIVE');
     expect(overtime.pucks).toHaveLength(1);
+  });
+
+  it('無得点11秒で予告し、12秒で両ゴールを12%広げる', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice');
+    const beforeNotice = {
+      ...initial,
+      match: { ...initial.match, ticksRemaining: 80 * 120 },
+      noScore: {
+        ...initial.noScore,
+        ticksSinceGoal: NO_SCORE_NOTICE_SECONDS * 120 - 1,
+      },
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+
+    const notice = stepStraightBench(beforeNotice, 1);
+    expect(notice.noScore.ticksSinceGoal).toBe(NO_SCORE_NOTICE_SECONDS * 120);
+    expect(notice.noScore.goalExpanded).toBe(false);
+
+    const expanded = stepStraightBench(notice, 120);
+    const baseOpening = getGoalOpeningBounds(initial, 'top');
+    const expandedOpening = getGoalOpeningBounds(expanded, 'top');
+    expect(expanded.noScore.ticksSinceGoal).toBe(NO_SCORE_EXPANSION_SECONDS * 120);
+    expect(expanded.noScore.goalExpanded).toBe(true);
+    expect(expandedOpening.maxX - expandedOpening.minX).toBeCloseTo(
+      (baseOpening.maxX - baseOpening.minX) * 1.12,
+    );
+
+    const baseEdge = {
+      ...initial,
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          position: { x: 130, y: 30 },
+          velocity: { x: 0, y: -300 },
+        },
+      ],
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+    const expandedEdge = {
+      ...baseEdge,
+      noScore: { ...expanded.noScore },
+    };
+    expect(stepStraightBench(baseEdge, 10).match.playerScore).toBe(0);
+    expect(stepStraightBench(expandedEdge, 10).match.playerScore).toBe(1);
+  });
+
+  it('無得点20秒で中心向きの弱い波を出し、10秒後にもう一度出す', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice');
+    const beforePulse = {
+      ...initial,
+      match: { ...initial.match, ticksRemaining: 70 * 120 },
+      noScore: {
+        ...initial.noScore,
+        ticksSinceGoal: NO_SCORE_PULSE_SECONDS * 120 - 1,
+        nextPulseTicks: 1,
+      },
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          position: { x: 90, y: 320 },
+          velocity: { x: 0, y: 0 },
+        },
+      ],
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+
+    const pulsed = stepStraightBench(beforePulse, 1);
+    expect(pulsed.noScore.pulseTicksRemaining).toBeGreaterThan(0);
+    expect(pulsed.noScore.nextPulseTicks).toBe(NO_SCORE_PULSE_INTERVAL_SECONDS * 120);
+    expect(pulsed.pucks[0]?.velocity.x).toBeGreaterThan(0);
+
+    const repeated = stepStraightBench(pulsed, NO_SCORE_PULSE_INTERVAL_SECONDS * 120);
+    expect(repeated.noScore.pulseTicksRemaining).toBeGreaterThan(0);
+    expect(repeated.noScore.nextPulseTicks).toBe(NO_SCORE_PULSE_INTERVAL_SECONDS * 120);
+  });
+
+  it('得点するとゴール幅、無得点時間、中央波の待ち時間を通常へ戻す', () => {
+    const initial = createStraightBenchState();
+    const stalled = {
+      ...initial,
+      noScore: {
+        ...initial.noScore,
+        ticksSinceGoal: 30 * 120,
+        goalExpanded: true,
+        nextPulseTicks: 600,
+        pulseTicksRemaining: 10,
+      },
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          position: { x: 180, y: 30 },
+          velocity: { x: 0, y: -300 },
+        },
+      ],
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+
+    const scored = stepStraightBench(stalled, 10);
+    expect(scored.match.playerScore).toBe(1);
+    expect(scored.noScore.ticksSinceGoal).toBe(0);
+    expect(scored.noScore.goalExpanded).toBe(false);
+    expect(scored.noScore.nextPulseTicks).toBe(NO_SCORE_PULSE_SECONDS * 120);
+    expect(scored.noScore.pulseTicksRemaining).toBe(0);
   });
 
   it('弾が高速でもパックを通り抜けず、命中した方向へ押す', () => {
