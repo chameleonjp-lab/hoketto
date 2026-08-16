@@ -212,8 +212,19 @@
           <h2 id="result-title">試合結果</h2>
           <p id="result-score" class="result-score">自分 0　｜　相手 0</p>
           <p id="result-detail" class="flow-copy">ストレート・ベンチ</p>
+          <p
+            id="result-record-note"
+            class="settings-note result-record-note"
+            role="status"
+            aria-live="polite"
+          ></p>
+          <details class="result-export-details">
+            <summary>試遊記録を見る</summary>
+            <pre id="result-record-export" class="result-export" tabindex="0"></pre>
+          </details>
           <div class="flow-actions">
             <button id="result-rematch" class="primary-action" type="button">もう一度</button>
+            <button id="result-copy" class="secondary-action" type="button">記録をコピー</button>
             <button id="result-home" class="secondary-action" type="button">ホームへ</button>
           </div>
         </section>
