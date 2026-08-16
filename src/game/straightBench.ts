@@ -380,13 +380,14 @@ function moveBullets(state: StraightBenchState): {
     const obstacleHit = earliestObstacleHit(state, bullet.position, nextPosition, bullet.radius);
     if (obstacleHit && obstacleHit.hit.time <= hitTime) {
       if (obstacleHit.kind === 'reflector' && bullet.reflections === 0) {
+        const normal = outwardCollisionNormal(obstacleHit.normal, bullet.velocity);
         bullets.push({
           ...bullet,
           position: {
-            x: obstacleHit.hit.point.x + obstacleHit.normal.x * 0.1,
-            y: obstacleHit.hit.point.y + obstacleHit.normal.y * 0.1,
+            x: obstacleHit.hit.point.x + normal.x * 0.1,
+            y: obstacleHit.hit.point.y + normal.y * 0.1,
           },
-          velocity: reflectVector(bullet.velocity, obstacleHit.normal),
+          velocity: reflectVector(bullet.velocity, normal),
           remainingTicks: bullet.remainingTicks - 1,
           reflections: 1,
         });
@@ -486,6 +487,11 @@ function segmentNormal(segment: Segment): Point {
   return { x: -dy / length, y: dx / length };
 }
 
+function outwardCollisionNormal(normal: Point, velocity: Point): Point {
+  const dot = velocity.x * normal.x + velocity.y * normal.y;
+  return dot > 0 ? { x: -normal.x, y: -normal.y } : normal;
+}
+
 function bounceFromObstacles(
   state: StraightBenchState,
   start: Point,
@@ -520,12 +526,14 @@ function bounceFromObstacles(
   }
   if (!earliest) return { position: end, velocity };
 
+  const normal = outwardCollisionNormal(earliest.normal, velocity);
+
   return {
     position: {
-      x: earliest.hit.point.x + earliest.normal.x * 0.1,
-      y: earliest.hit.point.y + earliest.normal.y * 0.1,
+      x: earliest.hit.point.x + normal.x * 0.1,
+      y: earliest.hit.point.y + normal.y * 0.1,
     },
-    velocity: reflectVector(velocity, earliest.normal),
+    velocity: reflectVector(velocity, normal),
   };
 }
 
