@@ -296,6 +296,7 @@ function enterGame(seed = nextSeed): void {
       seed,
       durationSeconds: flow.selection.mode === 'trial' ? 30 : 90,
       difficulty: flow.selection.difficulty,
+      board: flow.selection.board === 'twin-block' ? 'twin-block' : 'straight-bench',
       onResult: handleGameResult,
       onShot: (owner) => soundController.playShot(owner),
       onGoal: (team) => soundController.playGoal(team),
