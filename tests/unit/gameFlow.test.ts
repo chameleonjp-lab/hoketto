@@ -149,8 +149,8 @@ describe('application flow', () => {
     const selected = chooseDifficulty(chooseBoard(openSelection(home), 'twin-block'), 'normal');
 
     expect(selected.screen).toBe('SELECT');
-    expect(canStartSelection(selected.selection)).toBe(false);
-    expect(startGame(selected)).toBe(selected);
+    expect(canStartSelection(selected.selection)).toBe(true);
+    expect(startGame(selected).screen).toBe('GAME');
     expect(canStartSelection(home.selection)).toBe(true);
 
     const normal = chooseDifficulty(openSelection(home), 'normal');
