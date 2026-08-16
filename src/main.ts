@@ -33,6 +33,7 @@ import {
   loadPlayRecords,
   savePlayRecords,
 } from './app/playRecords';
+import { loadPlayerProgress, savePlayerProgress } from './app/progress';
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -41,6 +42,7 @@ function requireElement<T extends Element>(selector: string): T {
 }
 
 const homeScreen = requireElement<HTMLElement>('#home-screen');
+const homeProgressNote = requireElement<HTMLElement>('#home-progress-note');
 const tutorialScreen = requireElement<HTMLElement>('#tutorial-screen');
 const selectionScreen = requireElement<HTMLElement>('#selection-screen');
 const gameScreen = requireElement<HTMLElement>('#game-screen');
@@ -102,6 +104,14 @@ let recordPersistenceWarning =
       ? '保存された試遊記録の一部を読み直せなかったため、破棄しました。'
       : '';
 let recordCopyNote = '';
+const loadedPlayerProgress = loadPlayerProgress();
+let tutorialCompleted = loadedPlayerProgress.progress.tutorialCompleted;
+let progressPersistenceWarning =
+  loadedPlayerProgress.status === 'unavailable'
+    ? '基本説明の完了をこの端末へ保存できません。ゲームはそのまま遊べます。'
+    : loadedPlayerProgress.status === 'recovered'
+      ? '保存された基本説明の状態を読み直せなかったため、未完了へ戻しました。'
+      : '';
 let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
 let tutorialWaitTimer: number | null = null;
@@ -150,6 +160,13 @@ function render(): void {
     ? '音声はこの端末で利用できます。'
     : 'このブラウザでは音声を利用できません。ゲームはそのまま遊べます。';
   settingsAudioNote.textContent = [audioSupportNote, settingsPersistenceWarning]
+    .filter(Boolean)
+    .join(' ');
+  tutorialButton.textContent = tutorialCompleted ? '説明をもう一度' : '説明を見る';
+  homeProgressNote.textContent = [
+    tutorialCompleted ? '基本説明は完了しています。必要なら説明をもう一度見られます。' : '',
+    progressPersistenceWarning,
+  ]
     .filter(Boolean)
     .join(' ');
   soundController.setMusicActive(!settingsOpen && flow.screen === 'GAME');
@@ -399,6 +416,10 @@ tutorialTarget.addEventListener('click', () => {
 tutorialNextButton.addEventListener('click', () => {
   flow = nextTutorial(flow);
   if (flow.screen === 'SELECT') {
+    tutorialCompleted = true;
+    progressPersistenceWarning = savePlayerProgress({ tutorialCompleted: true })
+      ? ''
+      : '基本説明の完了をこの端末へ保存できません。ゲームはそのまま遊べます。';
     render();
     selectionStartButton.focus();
     return;
