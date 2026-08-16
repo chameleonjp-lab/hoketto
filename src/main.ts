@@ -26,6 +26,7 @@ import {
 } from './app/gameFlow';
 import { mountTechnicalProbe, type TechnicalProbeResult } from './game/TechnicalProbe';
 import { SoundController } from './audio/sound';
+import { loadAudioSettings, saveAudioSettings } from './app/audioSettings';
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -74,7 +75,15 @@ const resultHomeButton = requireElement<HTMLButtonElement>('#result-home');
 let flow: AppFlowState = createAppFlowState();
 let game: ReturnType<typeof mountTechnicalProbe> | null = null;
 const soundController = new SoundController();
+const loadedAudioSettings = loadAudioSettings();
+soundController.applySettings(loadedAudioSettings.settings);
 let settingsOpen = false;
+let settingsPersistenceWarning =
+  loadedAudioSettings.status === 'unavailable'
+    ? '音設定をこの端末へ保存できません。ゲームはそのまま遊べます。'
+    : loadedAudioSettings.status === 'recovered'
+      ? '保存された音設定を読み直せなかったため、無音に戻しました。'
+      : '';
 let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
 let tutorialWaitTimer: number | null = null;
@@ -117,9 +126,12 @@ function render(): void {
 
   settingsEffects.checked = soundController.areEffectsEnabled;
   settingsMusic.checked = soundController.isMusicEnabled;
-  settingsAudioNote.textContent = soundController.isSupported
+  const audioSupportNote = soundController.isSupported
     ? '音声はこの端末で利用できます。'
     : 'このブラウザでは音声を利用できません。ゲームはそのまま遊べます。';
+  settingsAudioNote.textContent = [audioSupportNote, settingsPersistenceWarning]
+    .filter(Boolean)
+    .join(' ');
   soundController.setMusicActive(!settingsOpen && flow.screen === 'GAME');
 
   const step = TUTORIAL_STEPS[flow.tutorialStep];
@@ -283,12 +295,24 @@ settingsBack.addEventListener('click', () => {
 
 settingsEffects.addEventListener('change', () => {
   soundController.setEffectsEnabled(settingsEffects.checked);
+  settingsPersistenceWarning = saveAudioSettings({
+    effectsEnabled: settingsEffects.checked,
+    musicEnabled: settingsMusic.checked,
+  })
+    ? ''
+    : '音設定をこの端末へ保存できません。ゲームはそのまま遊べます。';
   render();
   settingsEffects.focus();
 });
 
 settingsMusic.addEventListener('change', () => {
   soundController.setMusicEnabled(settingsMusic.checked);
+  settingsPersistenceWarning = saveAudioSettings({
+    effectsEnabled: settingsEffects.checked,
+    musicEnabled: settingsMusic.checked,
+  })
+    ? ''
+    : '音設定をこの端末へ保存できません。ゲームはそのまま遊べます。';
   render();
   settingsMusic.focus();
 });
