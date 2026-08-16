@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { STRAIGHT_BENCH } from '../../src/config/boards';
+import { STRAIGHT_BENCH, TWIN_BLOCK } from '../../src/config/boards';
 import { validateBoard } from '../../src/physics/boardValidator';
 
 describe('board validator', () => {
   it('標準盤面を受け入れる', () => {
     expect(validateBoard(STRAIGHT_BENCH)).toEqual({ ok: true, errors: [] });
+  });
+
+  it('ツイン・ブロック盤面は対称な障害物と通路を受け入れる', () => {
+    expect(validateBoard(TWIN_BLOCK)).toEqual({ ok: true, errors: [] });
   });
 
   it('コア候補が少ない盤面を拒否する', () => {
