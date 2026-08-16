@@ -21,6 +21,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit firefox
       - name: Check formatting
         run: npm run format:check
       - name: Run lint
@@ -31,3 +33,5 @@ jobs:
         run: npm test
       - name: Build static output
         run: npm run build
+      - name: Run browser smoke tests
+        run: npx playwright test
