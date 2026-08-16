@@ -73,4 +73,17 @@ describe('pointer input controller', () => {
     });
     expect(controller.pointerUp(3, { x: 180, y: 400 }).kind).toBe('ignored');
   });
+
+  it('砲台より後ろの座標はPointerでも有効範囲にしない', () => {
+    const controller = new PointerInputController({
+      ...rules,
+      forward: { origin: { x: 180, y: 580 }, minimumDistance: 32, axis: 'up' },
+    });
+
+    expect(controller.pointerDown(9, { x: 180, y: 549 })).toEqual({
+      kind: 'ignored',
+      pointerId: 9,
+    });
+    expect(controller.pointerDown(9, { x: 180, y: 548 }).kind).toBe('aim-start');
+  });
 });
