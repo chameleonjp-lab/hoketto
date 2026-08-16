@@ -2,6 +2,11 @@ export type SoundOwner = 'player' | 'cpu';
 
 export type SoundTeam = 'player' | 'cpu';
 
+export interface SoundSettings {
+  readonly effectsEnabled: boolean;
+  readonly musicEnabled: boolean;
+}
+
 interface AudioWindow extends Window {
   AudioContext?: typeof AudioContext;
   webkitAudioContext?: typeof AudioContext;
@@ -39,6 +44,12 @@ export class SoundController {
   public setEffectsEnabled(enabled: boolean): void {
     this.effectsEnabled = enabled;
     if (enabled) this.ensureContext();
+  }
+
+  public applySettings(settings: SoundSettings): void {
+    this.effectsEnabled = settings.effectsEnabled;
+    this.musicEnabled = settings.musicEnabled;
+    this.syncMusic();
   }
 
   public setMusicEnabled(enabled: boolean): void {
