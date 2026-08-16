@@ -151,6 +151,10 @@ describe('application flow', () => {
     expect(selected.screen).toBe('SELECT');
     expect(canStartSelection(selected.selection)).toBe(true);
     expect(startGame(selected).screen).toBe('GAME');
+
+    const ricochet = chooseBoard(openSelection(home), 'ricochet-lane');
+    expect(canStartSelection(ricochet.selection)).toBe(true);
+    expect(startGame(ricochet).screen).toBe('GAME');
     expect(canStartSelection(home.selection)).toBe(true);
 
     const normal = chooseDifficulty(openSelection(home), 'normal');

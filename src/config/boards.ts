@@ -1,7 +1,7 @@
 import type { BoardDefinition } from '../domain/types';
 import { assertValidBoard } from '../physics/boardValidator';
 
-export type PlayableBoardId = 'straight-bench' | 'twin-block';
+export type PlayableBoardId = 'straight-bench' | 'twin-block' | 'ricochet-lane';
 
 export const STRAIGHT_BENCH: BoardDefinition = {
   id: 'straight-bench',
@@ -57,9 +57,32 @@ export const TWIN_BLOCK: BoardDefinition = {
   ],
 };
 
+export const RICOCHET_LANE: BoardDefinition = {
+  id: 'ricochet-lane',
+  width: 360,
+  height: 640,
+  minimumCorridor: 110,
+  goals: STRAIGHT_BENCH.goals,
+  staticCircles: [],
+  staticBoxes: [],
+  staticSegments: [
+    { start: { x: 78, y: 260 }, end: { x: 150, y: 188 } },
+    { start: { x: 210, y: 452 }, end: { x: 282, y: 380 } },
+  ],
+  initialPucks: [{ center: { x: 180, y: 320 }, radius: 14 }],
+  coreCandidates: [
+    { x: 120, y: 320 },
+    { x: 180, y: 320 },
+    { x: 240, y: 320 },
+  ],
+};
+
 export function getBoardDefinition(board: PlayableBoardId): BoardDefinition {
-  return board === 'twin-block' ? TWIN_BLOCK : STRAIGHT_BENCH;
+  if (board === 'twin-block') return TWIN_BLOCK;
+  if (board === 'ricochet-lane') return RICOCHET_LANE;
+  return STRAIGHT_BENCH;
 }
 
 assertValidBoard(STRAIGHT_BENCH);
 assertValidBoard(TWIN_BLOCK);
+assertValidBoard(RICOCHET_LANE);

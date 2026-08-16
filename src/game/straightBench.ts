@@ -9,7 +9,7 @@ import {
   type MatchPhase,
   type MatchState,
 } from '../domain/match';
-import type { Aabb, Point, Team } from '../domain/types';
+import type { Aabb, Point, Segment, Team } from '../domain/types';
 import {
   clampVectorMagnitude,
   reflectVector,
@@ -61,6 +61,7 @@ export interface BulletState {
   readonly velocity: Point;
   readonly radius: number;
   readonly remainingTicks: number;
+  readonly reflections: number;
 }
 
 export type GoalResumePhase = 'PLAYING' | 'OVERTIME' | 'OVERTIME_NOTICE' | 'RESULT';
@@ -377,7 +378,19 @@ function moveBullets(state: StraightBenchState): {
     }
 
     const obstacleHit = earliestObstacleHit(state, bullet.position, nextPosition, bullet.radius);
-    if (obstacleHit && obstacleHit.time <= hitTime) {
+    if (obstacleHit && obstacleHit.hit.time <= hitTime) {
+      if (obstacleHit.kind === 'reflector' && bullet.reflections === 0) {
+        bullets.push({
+          ...bullet,
+          position: {
+            x: obstacleHit.hit.point.x + obstacleHit.normal.x * 0.1,
+            y: obstacleHit.hit.point.y + obstacleHit.normal.y * 0.1,
+          },
+          velocity: reflectVector(bullet.velocity, obstacleHit.normal),
+          remainingTicks: bullet.remainingTicks - 1,
+          reflections: 1,
+        });
+      }
       continue;
     }
 
@@ -414,47 +427,40 @@ function moveBullets(state: StraightBenchState): {
   return { bullets, pucks };
 }
 
+interface ObstacleHit {
+  readonly hit: SweepHit;
+  readonly kind: 'solid' | 'reflector';
+  readonly normal: Point;
+}
+
 function earliestObstacleHit(
   state: StraightBenchState,
   start: Point,
   end: Point,
   movingRadius: number,
-): SweepHit | null {
-  const hits: SweepHit[] = [];
+): ObstacleHit | null {
+  const hits: ObstacleHit[] = [];
   const board = boardFor(state);
   for (const box of board.staticBoxes) {
     const hit = sweptCircleAgainstAabb(start, end, movingRadius, box);
-    if (hit) hits.push(hit);
+    if (hit) hits.push({ hit, kind: 'solid', normal: { x: 0, y: -1 } });
   }
   for (const circle of board.staticCircles) {
     const hit = sweptCircleAgainstCircle(start, end, movingRadius, circle);
-    if (hit) hits.push(hit);
+    if (hit) hits.push({ hit, kind: 'solid', normal: { x: 0, y: -1 } });
   }
   for (const segment of board.staticSegments) {
     const hit = sweptCircleAgainstSegment(start, end, movingRadius, segment);
-    if (hit) hits.push(hit);
+    if (hit) hits.push({ hit, kind: 'reflector', normal: segmentNormal(segment) });
   }
-  return hits.reduce<SweepHit | null>(
-    (earliest, hit) => (earliest === null || hit.time < earliest.time ? hit : earliest),
+  return hits.reduce<ObstacleHit | null>(
+    (earliest, candidate) =>
+      earliest === null || candidate.hit.time < earliest.hit.time ? candidate : earliest,
     null,
   );
 }
 
-function bounceFromBoxes(
-  state: StraightBenchState,
-  start: Point,
-  end: Point,
-  velocity: Point,
-  radius: number,
-): { readonly position: Point; readonly velocity: Point } {
-  let earliest: { readonly hit: SweepHit; readonly box: Aabb } | null = null;
-  for (const box of boardFor(state).staticBoxes) {
-    const hit = sweptCircleAgainstAabb(start, end, radius, box);
-    if (hit && (earliest === null || hit.time < earliest.hit.time)) earliest = { hit, box };
-  }
-  if (!earliest) return { position: end, velocity };
-
-  const { hit, box } = earliest;
+function boxNormalAtHit(hit: SweepHit, box: Aabb, radius: number): Point {
   const expanded = {
     left: box.minX - radius,
     right: box.maxX + radius,
@@ -467,15 +473,59 @@ function bounceFromBoxes(
     { distance: Math.abs(hit.point.y - expanded.top), normal: { x: 0, y: -1 } },
     { distance: Math.abs(hit.point.y - expanded.bottom), normal: { x: 0, y: 1 } },
   ];
-  const nearest = candidates.reduce((best, candidate) =>
+  return candidates.reduce((best, candidate) =>
     candidate.distance < best.distance ? candidate : best,
-  );
+  ).normal;
+}
+
+function segmentNormal(segment: Segment): Point {
+  const dx = segment.end.x - segment.start.x;
+  const dy = segment.end.y - segment.start.y;
+  const length = Math.hypot(dx, dy);
+  if (length <= Number.EPSILON) return { x: 0, y: -1 };
+  return { x: -dy / length, y: dx / length };
+}
+
+function bounceFromObstacles(
+  state: StraightBenchState,
+  start: Point,
+  end: Point,
+  velocity: Point,
+  radius: number,
+): { readonly position: Point; readonly velocity: Point } {
+  let earliest: { readonly hit: SweepHit; readonly normal: Point } | null = null;
+  for (const box of boardFor(state).staticBoxes) {
+    const hit = sweptCircleAgainstAabb(start, end, radius, box);
+    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
+      earliest = { hit, normal: boxNormalAtHit(hit, box, radius) };
+    }
+  }
+  for (const circle of boardFor(state).staticCircles) {
+    const hit = sweptCircleAgainstCircle(start, end, radius, circle);
+    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
+      earliest = {
+        hit,
+        normal: normalize(
+          { x: hit.point.x - circle.center.x, y: hit.point.y - circle.center.y },
+          { x: 0, y: -1 },
+        ),
+      };
+    }
+  }
+  for (const segment of boardFor(state).staticSegments) {
+    const hit = sweptCircleAgainstSegment(start, end, radius, segment);
+    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
+      earliest = { hit, normal: segmentNormal(segment) };
+    }
+  }
+  if (!earliest) return { position: end, velocity };
+
   return {
     position: {
-      x: hit.point.x + nearest.normal.x * 0.1,
-      y: hit.point.y + nearest.normal.y * 0.1,
+      x: earliest.hit.point.x + earliest.normal.x * 0.1,
+      y: earliest.hit.point.y + earliest.normal.y * 0.1,
     },
-    velocity: reflectVector(velocity, nearest.normal),
+    velocity: reflectVector(velocity, earliest.normal),
   };
 }
 
@@ -501,7 +551,7 @@ function movePucks(state: StraightBenchState): {
       nextPucks.push({ ...puck, active: false, position: end, velocity: { x: 0, y: 0 } });
       continue;
     }
-    const obstacleBounce = bounceFromBoxes(state, start, end, velocity, puck.radius);
+    const obstacleBounce = bounceFromObstacles(state, start, end, velocity, puck.radius);
     const bounced = bounceInsideBoard(
       state,
       obstacleBounce.position,
@@ -606,6 +656,7 @@ function fireShot(state: StraightBenchState, owner: Team, target: Point): Straig
     velocity: scale(direction, BULLET_SPEED),
     radius: BULLET_RADIUS,
     remainingTicks: BULLET_LIFETIME_TICKS,
+    reflections: 0,
   };
   return {
     ...state,

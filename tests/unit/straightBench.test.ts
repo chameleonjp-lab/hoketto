@@ -97,6 +97,28 @@ describe('straight bench simulation', () => {
     expect(bounced.pucks[0]?.position.x).toBeGreaterThan(112);
   });
 
+  it('リフレクト・レーンの反射板は弾を1回反射し、パックの軌道を反転する', () => {
+    const state = createStraightBenchState(20260814, 90, 'practice', 'ricochet-lane');
+    const fired = firePlayerShot(state, { x: 100, y: 220 });
+    const reflected = stepStraightBench(fired, 50);
+    expect(reflected.bullets.filter((bullet) => bullet.owner === 'player')[0]?.reflections).toBe(1);
+
+    const nearRail = {
+      ...state,
+      pucks: [
+        {
+          ...state.pucks[0]!,
+          position: { x: 100, y: 270 },
+          velocity: { x: 0, y: -360 },
+        },
+      ],
+    };
+    const bounced = stepStraightBench(nearRail, 7);
+
+    expect(bounced.pucks[0]?.velocity.x).toBeGreaterThan(0);
+    expect(bounced.pucks[0]?.velocity.y).toBeGreaterThan(-360);
+  });
+
   it('弾が高速でもパックを通り抜けず、命中した方向へ押す', () => {
     const fired = firePlayerShot(createStraightBenchState(), { x: 180, y: 320 });
     const afterHit = stepStraightBench(fired, 40);
