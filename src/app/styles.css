@@ -211,6 +211,40 @@ h2 {
   line-height: 1.4;
 }
 
+.result-record-note {
+  min-height: 1.5em;
+}
+
+.result-export-details {
+  max-width: 42rem;
+  margin: 20px auto 0;
+  color: #c8d1e5;
+  text-align: left;
+}
+
+.result-export-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.result-export {
+  max-height: 12rem;
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #496483;
+  border-radius: 10px;
+  background: #0b1020;
+  color: #f6f8ff;
+  font:
+    0.85rem/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  user-select: text;
+  white-space: pre-wrap;
+}
+
 .result-panel .flow-actions {
   max-width: 32rem;
   margin-right: auto;
