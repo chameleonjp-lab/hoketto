@@ -36,6 +36,13 @@ export const PUCK_DECELERATION_PER_SECOND = 90;
 export const CORE_NOTICE_SECONDS = 17;
 export const CORE_ACTIVE_SECONDS = 15;
 export const CORE_RESERVATION_TICKS = 2 * TICKS_PER_SECOND;
+export const NO_SCORE_NOTICE_SECONDS = 11;
+export const NO_SCORE_EXPANSION_SECONDS = 12;
+export const NO_SCORE_PULSE_SECONDS = 20;
+export const NO_SCORE_PULSE_INTERVAL_SECONDS = 10;
+export const NO_SCORE_PULSE_SPEED = 160;
+export const NO_SCORE_PULSE_DURATION_TICKS = Math.round(0.35 * TICKS_PER_SECOND);
+export const GOAL_EXPANSION_RATIO = 0.12;
 export type CpuDifficulty = 'practice' | 'normal';
 
 export const PRACTICE_CPU_REACTION_TICKS = Math.round(0.48 * TICKS_PER_SECOND);
@@ -57,6 +64,13 @@ export interface CoreState {
   readonly phase: CorePhase;
   readonly position: Point | null;
   readonly candidateIndex: number | null;
+}
+
+export interface NoScoreState {
+  readonly ticksSinceGoal: number;
+  readonly goalExpanded: boolean;
+  readonly nextPulseTicks: number;
+  readonly pulseTicksRemaining: number;
 }
 
 export interface PuckState {
@@ -87,6 +101,7 @@ export interface StraightBenchState {
   readonly match: MatchState;
   readonly pucks: readonly PuckState[];
   readonly core: CoreState;
+  readonly noScore: NoScoreState;
   readonly bullets: readonly BulletState[];
   readonly cooldownTicks: number;
   readonly cpuCooldownTicks: number;
@@ -176,6 +191,89 @@ function boardFor(state: StraightBenchState): ReturnType<typeof getBoardDefiniti
 
 function inactiveCore(): CoreState {
   return { phase: 'INACTIVE', position: null, candidateIndex: null };
+}
+
+function resetNoScoreState(): NoScoreState {
+  return {
+    ticksSinceGoal: 0,
+    goalExpanded: false,
+    nextPulseTicks: NO_SCORE_PULSE_SECONDS * TICKS_PER_SECOND,
+    pulseTicksRemaining: 0,
+  };
+}
+
+function goalOpeningBoundsFor(
+  state: StraightBenchState,
+  goal: ReturnType<typeof getBoardDefinition>['goals'][number],
+): { readonly minX: number; readonly maxX: number } {
+  const expanded = state.match.phase === 'PLAYING' && state.noScore.goalExpanded;
+  const width = (goal.openingMaxX - goal.openingMinX) * (expanded ? 1 + GOAL_EXPANSION_RATIO : 1);
+  const center = (goal.openingMinX + goal.openingMaxX) / 2;
+  return { minX: center - width / 2, maxX: center + width / 2 };
+}
+
+export function getGoalOpeningBounds(
+  state: StraightBenchState,
+  side: 'top' | 'bottom',
+): { readonly minX: number; readonly maxX: number } {
+  const goal = boardFor(state).goals.find((candidate) => candidate.side === side);
+  if (!goal) return { minX: 0, maxX: 0 };
+  return goalOpeningBoundsFor(state, goal);
+}
+
+function advanceNoScorePressure(
+  state: StraightBenchState,
+  nextMatch: MatchState,
+): { readonly state: StraightBenchState; readonly pulse: boolean } {
+  if (state.match.phase !== 'PLAYING' || nextMatch.phase !== 'PLAYING') {
+    return {
+      state: {
+        ...state,
+        noScore: resetNoScoreState(),
+      },
+      pulse: false,
+    };
+  }
+
+  const ticksSinceGoal = state.noScore.ticksSinceGoal + 1;
+  const nextPulseTicks = Math.max(0, state.noScore.nextPulseTicks - 1);
+  const pulse = ticksSinceGoal >= NO_SCORE_PULSE_SECONDS * TICKS_PER_SECOND && nextPulseTicks === 0;
+  return {
+    state: {
+      ...state,
+      noScore: {
+        ticksSinceGoal,
+        goalExpanded: ticksSinceGoal >= NO_SCORE_EXPANSION_SECONDS * TICKS_PER_SECOND,
+        nextPulseTicks: pulse ? NO_SCORE_PULSE_INTERVAL_SECONDS * TICKS_PER_SECOND : nextPulseTicks,
+        pulseTicksRemaining: pulse
+          ? NO_SCORE_PULSE_DURATION_TICKS
+          : Math.max(0, state.noScore.pulseTicksRemaining - 1),
+      },
+    },
+    pulse,
+  };
+}
+
+function applyNoScorePulse(state: StraightBenchState): StraightBenchState {
+  const center = { x: STRAIGHT_BENCH_WIDTH / 2, y: STRAIGHT_BENCH_HEIGHT / 2 };
+  return {
+    ...state,
+    pucks: state.pucks.map((puck) => {
+      if (!puck.active) return puck;
+      const fallback = puck.id % 2 === 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+      const direction = normalize(
+        { x: center.x - puck.position.x, y: center.y - puck.position.y },
+        fallback,
+      );
+      return {
+        ...puck,
+        velocity: clampVectorMagnitude(
+          add(puck.velocity, scale(direction, NO_SCORE_PULSE_SPEED)),
+          MAX_PUCK_SPEED,
+        ),
+      };
+    }),
+  };
 }
 
 function coreReservationCircle(state: StraightBenchState): Circle | null {
@@ -275,9 +373,8 @@ function syncActiveCorePosition(state: StraightBenchState): StraightBenchState {
 
 function goalOpeningContainsX(state: StraightBenchState, x: number): boolean {
   const goal = boardFor(state).goals[0];
-  return (
-    x >= goal.openingMinX + GOAL_OPENING_PADDING && x <= goal.openingMaxX - GOAL_OPENING_PADDING
-  );
+  const opening = goalOpeningBoundsFor(state, goal);
+  return x >= opening.minX + GOAL_OPENING_PADDING && x <= opening.maxX - GOAL_OPENING_PADDING;
 }
 
 function crossingAtY(start: Point, end: Point, y: number): Point | null {
@@ -427,6 +524,7 @@ function applyPhysicalGoals(
   return {
     ...state,
     match,
+    noScore: resetNoScoreState(),
     pucks: resetPucksForRound(state),
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
@@ -472,7 +570,11 @@ function stepOvertimeNotice(state: StraightBenchState): StraightBenchState {
   if (state.overtimeNoticeTicks > 1) {
     return { ...state, overtimeNoticeTicks: state.overtimeNoticeTicks - 1 };
   }
-  const overtimeState = { ...state, core: inactiveCore() };
+  const overtimeState = {
+    ...state,
+    core: inactiveCore(),
+    noScore: resetNoScoreState(),
+  };
   return {
     ...resetForNextRound(overtimeState),
     match: {
@@ -732,7 +834,9 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
     cpuCooldownTicks,
     cpuThinkTicks,
   };
-  const corePreparedState = prepareCoreReservation(preparedState, clockedMatch);
+  const pressure = advanceNoScorePressure(preparedState, clockedMatch);
+  const pressuredState = pressure.pulse ? applyNoScorePulse(pressure.state) : pressure.state;
+  const corePreparedState = prepareCoreReservation(pressuredState, clockedMatch);
   const cpuReadyState =
     isActivePhase(clockedMatch.phase) && cpuCooldownTicks === 0 && cpuThinkTicks === 0
       ? fireCpuShot(corePreparedState, chooseCpuTarget(corePreparedState))
@@ -782,6 +886,7 @@ export function createStraightBenchState(
     difficulty,
     match: createMatchState(seed, durationSeconds),
     core: inactiveCore(),
+    noScore: resetNoScoreState(),
     pucks: definition.initialPucks.map((puck, index) => ({
       id: index + 1,
       position: puck.center,
