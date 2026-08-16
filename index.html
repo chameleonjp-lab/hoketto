@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』" />
-    <title>ホケット | P2 基本導線試作</title>
+    <title>ホケット | P3 盤面試作</title>
   </head>
   <body>
     <main id="app" aria-labelledby="page-title">
       <section class="shell">
-        <p class="eyebrow">P2 基本導線試作</p>
+        <p class="eyebrow">P3 盤面試作</p>
         <h1 id="page-title">ホケット</h1>
         <p class="lead">弾でパックを動かし、相手ゴールを狙う縦画面のブラウザゲームです。</p>
 
@@ -19,7 +19,7 @@
           <p class="flow-copy">下から弾を撃ち、白いパックを上の相手ゴールへ入れます。</p>
           <div class="status-panel" aria-live="polite">
             <strong>いま遊べる範囲</strong>
-            <span>弾・パック・ゴール・得点・30秒／90秒の固定更新・両砲台の状態表示</span>
+            <span>3盤面・弾・パック・ゴール・得点・30秒／90秒の固定更新・両砲台の状態表示</span>
           </div>
           <p id="home-progress-note" class="settings-note" role="status" aria-live="polite"></p>
           <div class="flow-actions">
@@ -126,10 +126,10 @@
                 <span>中央のブロックで横から狙う盤面。</span>
                 <small>開始できます</small>
               </button>
-              <button id="board-ricochet" class="selection-card" type="button" disabled>
+              <button id="board-ricochet" class="selection-card" type="button">
                 <strong>リフレクト・レーン</strong>
                 <span>反射板で軌道を変える盤面。</span>
-                <small>次の工程で解放</small>
+                <small>開始できます</small>
               </button>
             </div>
           </fieldset>
@@ -187,7 +187,7 @@
         <section id="game-screen" class="game-panel" aria-labelledby="game-title" hidden>
           <div class="game-header">
             <div>
-              <p class="section-kicker">ストレート・ベンチ</p>
+              <p id="game-board-label" class="section-kicker">ストレート・ベンチ</p>
               <h2 id="game-title">試合</h2>
             </div>
             <button id="home-button" class="home-button" type="button">ホームへ</button>
@@ -198,7 +198,7 @@
           </div>
           <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
           <p class="caption">
-            ストレート・ベンチの試作です。CPUも同じ弾速・命中規則で自動射撃し、れんしゅうとふつうで反応時間と先読みを変えます。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。音は設定画面で個別に有効化できますが、初期状態は無音です。複数盤面は次の工程です。
+            ストレート・ベンチ、ツイン・ブロック、リフレクト・レーンの試作です。CPUも同じ弾速・命中規則で自動射撃し、れんしゅうとふつうで反応時間と先読みを変えます。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。音は設定画面で個別に有効化できますが、初期状態は無音です。
           </p>
         </section>
 
