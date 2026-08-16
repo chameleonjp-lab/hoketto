@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getBoardDefinition, type PlayableBoardId } from '../config/boards';
 import type { Point } from '../domain/types';
 import { PointerInputController, type PointerInputEvent } from './pointerInput';
 import {
@@ -36,6 +37,7 @@ export interface TechnicalProbeOptions {
   readonly seed?: number;
   readonly durationSeconds?: number;
   readonly difficulty?: CpuDifficulty;
+  readonly board?: PlayableBoardId;
   readonly onResult?: (result: TechnicalProbeResult) => void;
   readonly onShot?: (owner: 'player' | 'cpu') => void;
   readonly onGoal?: (team: 'player' | 'cpu') => void;
@@ -74,6 +76,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       options.seed ?? 20260814,
       options.durationSeconds ?? MATCH_SECONDS,
       options.difficulty ?? 'practice',
+      options.board ?? 'straight-bench',
     );
   }
 
@@ -246,6 +249,7 @@ class TechnicalProbeScene extends Phaser.Scene {
 
     this.drawGoal(graphics, 'top');
     this.drawGoal(graphics, 'bottom');
+    this.drawObstacles(graphics);
     this.drawTurret(graphics, getCpuTurret(), this.cpuColor, false);
     this.drawTurret(graphics, getPlayerTurret(), this.playerColor, true);
 
@@ -356,6 +360,16 @@ class TechnicalProbeScene extends Phaser.Scene {
     graphics.lineBetween(238, y, WIDTH - BOARD_MARGIN, y);
     graphics.lineStyle(3, goalColor, 0.65);
     graphics.lineBetween(122, y, 238, y);
+  }
+
+  private drawObstacles(graphics: Phaser.GameObjects.Graphics): void {
+    const board = getBoardDefinition(this.state.board);
+    for (const box of board.staticBoxes) {
+      graphics.fillStyle(0x102832, 1);
+      graphics.fillRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
+      graphics.lineStyle(3, this.lineColor, 0.85);
+      graphics.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
+    }
   }
 
   private drawTurret(
