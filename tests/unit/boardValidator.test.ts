@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STRAIGHT_BENCH, TWIN_BLOCK } from '../../src/config/boards';
+import { RICOCHET_LANE, STRAIGHT_BENCH, TWIN_BLOCK } from '../../src/config/boards';
 import { validateBoard } from '../../src/physics/boardValidator';
 
 describe('board validator', () => {
@@ -9,6 +9,10 @@ describe('board validator', () => {
 
   it('ツイン・ブロック盤面は対称な障害物と通路を受け入れる', () => {
     expect(validateBoard(TWIN_BLOCK)).toEqual({ ok: true, errors: [] });
+  });
+
+  it('リフレクト・レーン盤面は対称な反射板を受け入れる', () => {
+    expect(validateBoard(RICOCHET_LANE)).toEqual({ ok: true, errors: [] });
   });
 
   it('コア候補が少ない盤面を拒否する', () => {
