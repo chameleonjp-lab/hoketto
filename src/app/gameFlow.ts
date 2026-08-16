@@ -64,7 +64,7 @@ export const DEFAULT_GAME_SELECTION: GameSelection = {
 export function canStartSelection(selection: GameSelection): boolean {
   return (
     selection.board === 'straight-bench' &&
-    selection.difficulty === 'practice' &&
+    (selection.difficulty === 'practice' || selection.difficulty === 'normal') &&
     (selection.mode === 'trial' || selection.mode === 'match')
   );
 }

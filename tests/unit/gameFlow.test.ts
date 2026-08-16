@@ -153,6 +153,10 @@ describe('application flow', () => {
     expect(startGame(selected)).toBe(selected);
     expect(canStartSelection(home.selection)).toBe(true);
 
+    const normal = chooseDifficulty(openSelection(home), 'normal');
+    expect(canStartSelection(normal.selection)).toBe(true);
+    expect(startGame(normal).screen).toBe('GAME');
+
     const trial = chooseGameMode(home, 'trial');
     expect(trial.selection.mode).toBe('trial');
     expect(canStartSelection(trial.selection)).toBe(true);

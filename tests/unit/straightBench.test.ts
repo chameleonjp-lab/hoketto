@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CPU_REACTION_TICKS,
   GOAL_PAUSE_TICKS,
+  NORMAL_CPU_REACTION_TICKS,
   SHOT_COOLDOWN_TICKS,
   createStraightBenchState,
   createStraightBenchRematch,
@@ -31,6 +32,17 @@ describe('straight bench simulation', () => {
     expect(state.pucks).toHaveLength(1);
   });
 
+  it('ふつうCPUは、れんしゅうより早く考え、同じ弾速と命中規則を使う', () => {
+    const practice = createStraightBenchState(20260814, 90, 'practice');
+    const normal = createStraightBenchState(20260814, 90, 'normal');
+
+    expect(practice.difficulty).toBe('practice');
+    expect(normal.difficulty).toBe('normal');
+    expect(normal.cpuThinkTicks).toBe(NORMAL_CPU_REACTION_TICKS);
+    expect(normal.cpuThinkTicks).toBeLessThan(practice.cpuThinkTicks);
+    expect(stepStraightBench(normal, NORMAL_CPU_REACTION_TICKS).bullets[0]?.owner).toBe('cpu');
+  });
+
   it('試し撃ちの再戦も30秒を保つ', () => {
     const initial = createStraightBenchState(20260814, 30);
     const result = { ...initial, match: { ...initial.match, phase: 'RESULT' as const } };
@@ -39,6 +51,13 @@ describe('straight bench simulation', () => {
     expect(rematch.durationSeconds).toBe(30);
     expect(rematch.match.ticksRemaining).toBe(30 * 120);
     expect(rematch.match.seed).toBe(20260815);
+  });
+
+  it('ふつうCPUの再戦でも難易度を保持する', () => {
+    const initial = createStraightBenchState(20260814, 90, 'normal');
+    const result = { ...initial, match: { ...initial.match, phase: 'RESULT' as const } };
+
+    expect(createStraightBenchRematch(result).difficulty).toBe('normal');
   });
 
   it('弾が高速でもパックを通り抜けず、命中した方向へ押す', () => {

@@ -25,8 +25,14 @@ export const RESUME_COUNTDOWN_TICKS = 3 * TICKS_PER_SECOND;
 export const PUCK_HIT_IMPULSE = 360;
 export const MAX_PUCK_SPEED = 600;
 export const PUCK_DECELERATION_PER_SECOND = 90;
-export const CPU_REACTION_TICKS = Math.round(0.3 * TICKS_PER_SECOND);
-export const CPU_AIM_LEAD_TICKS = Math.round(0.18 * TICKS_PER_SECOND);
+export type CpuDifficulty = 'practice' | 'normal';
+
+export const PRACTICE_CPU_REACTION_TICKS = Math.round(0.48 * TICKS_PER_SECOND);
+export const NORMAL_CPU_REACTION_TICKS = Math.round(0.28 * TICKS_PER_SECOND);
+export const CPU_REACTION_TICKS = PRACTICE_CPU_REACTION_TICKS;
+export const PRACTICE_CPU_AIM_LEAD_TICKS = 0;
+export const NORMAL_CPU_AIM_LEAD_TICKS = Math.round(0.18 * TICKS_PER_SECOND);
+export const CPU_AIM_LEAD_TICKS = NORMAL_CPU_AIM_LEAD_TICKS;
 
 const PLAYER_TURRET: Point = { x: STRAIGHT_BENCH_WIDTH / 2, y: 580 };
 const CPU_TURRET: Point = { x: STRAIGHT_BENCH_WIDTH / 2, y: 60 };
@@ -54,6 +60,7 @@ export type GoalResumePhase = 'PLAYING' | 'OVERTIME' | 'OVERTIME_NOTICE' | 'RESU
 
 export interface StraightBenchState {
   readonly durationSeconds: number;
+  readonly difficulty: CpuDifficulty;
   readonly match: MatchState;
   readonly pucks: readonly PuckState[];
   readonly bullets: readonly BulletState[];
@@ -114,6 +121,29 @@ function dampVelocity(velocity: Point): Point {
     velocity,
     Math.max(0, speed - PUCK_DECELERATION_PER_SECOND / TICKS_PER_SECOND) / speed,
   );
+}
+
+function cpuReactionTicks(difficulty: CpuDifficulty): number {
+  return difficulty === 'normal' ? NORMAL_CPU_REACTION_TICKS : PRACTICE_CPU_REACTION_TICKS;
+}
+
+function cpuAimLeadTicks(difficulty: CpuDifficulty): number {
+  return difficulty === 'normal' ? NORMAL_CPU_AIM_LEAD_TICKS : PRACTICE_CPU_AIM_LEAD_TICKS;
+}
+
+function cpuAimErrorRadians(state: StraightBenchState): number {
+  const maximumDegrees = state.difficulty === 'normal' ? 4 : 8;
+  const deterministicSample = Math.sin(state.match.seed * 12.9898 + state.nextBulletId * 78.233);
+  return (deterministicSample * maximumDegrees * Math.PI) / 180;
+}
+
+function rotate(vector: Point, radians: number): Point {
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return {
+    x: vector.x * cosine - vector.y * sine,
+    y: vector.x * sine + vector.y * cosine,
+  };
 }
 
 function goalOpeningContainsX(x: number): boolean {
@@ -202,7 +232,7 @@ function resetForNextRound(state: StraightBenchState): StraightBenchState {
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
-    cpuThinkTicks: CPU_REACTION_TICKS,
+    cpuThinkTicks: cpuReactionTicks(state.difficulty),
   };
 }
 
@@ -248,7 +278,7 @@ function applyPhysicalGoals(
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
-    cpuThinkTicks: CPU_REACTION_TICKS,
+    cpuThinkTicks: cpuReactionTicks(state.difficulty),
     goalPauseTicks: GOAL_PAUSE_TICKS,
     goalResumePhase,
   };
@@ -435,15 +465,17 @@ function stepOne(state: StraightBenchState): StraightBenchState {
 export function createStraightBenchState(
   seed = 1,
   durationSeconds = MATCH_SECONDS,
+  difficulty: CpuDifficulty = 'practice',
 ): StraightBenchState {
   return {
     durationSeconds,
+    difficulty,
     match: createMatchState(seed, durationSeconds),
     pucks: [resetPuck(1)],
     bullets: [],
     cooldownTicks: 0,
     cpuCooldownTicks: 0,
-    cpuThinkTicks: CPU_REACTION_TICKS,
+    cpuThinkTicks: cpuReactionTicks(difficulty),
     goalPauseTicks: 0,
     overtimeNoticeTicks: 0,
     nextBulletId: 1,
@@ -473,7 +505,10 @@ function fireShot(state: StraightBenchState, owner: Team, target: Point): Straig
     bullets: [...state.bullets, bullet],
     ...(owner === 'player'
       ? { cooldownTicks: SHOT_COOLDOWN_TICKS }
-      : { cpuCooldownTicks: SHOT_COOLDOWN_TICKS }),
+      : {
+          cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
+          cpuThinkTicks: cpuReactionTicks(state.difficulty),
+        }),
     nextBulletId: state.nextBulletId + 1,
   };
 }
@@ -482,11 +517,23 @@ function chooseCpuTarget(state: StraightBenchState): Point {
   const puck = state.pucks.find((candidate) => candidate.active);
   if (!puck) return { x: STRAIGHT_BENCH_WIDTH / 2, y: STRAIGHT_BENCH_HEIGHT / 2 };
 
-  const leadSeconds = CPU_AIM_LEAD_TICKS / TICKS_PER_SECOND;
+  const leadSeconds = cpuAimLeadTicks(state.difficulty) / TICKS_PER_SECOND;
   const predicted = add(puck.position, scale(puck.velocity, leadSeconds));
-  return {
+  const clamped = {
     x: clamp(predicted.x, puck.radius, STRAIGHT_BENCH_WIDTH - puck.radius),
     y: clamp(predicted.y, puck.radius, STRAIGHT_BENCH_HEIGHT - puck.radius),
+  };
+  const distance = Math.max(
+    1,
+    magnitude({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }),
+  );
+  const direction = rotate(
+    normalize({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }, { x: 0, y: 1 }),
+    cpuAimErrorRadians(state),
+  );
+  return {
+    x: CPU_TURRET.x + direction.x * distance,
+    y: CPU_TURRET.y + direction.y * distance,
   };
 }
 
@@ -506,13 +553,13 @@ export function getPlayerTurretReadiness(state: StraightBenchState): TurretReadi
 
 export function getCpuTurretReadiness(state: StraightBenchState): TurretReadiness {
   if (!isActivePhase(state.match.phase)) return 'stopped';
-  if (state.cpuThinkTicks > 0) return 'thinking';
-  return state.cpuCooldownTicks === 0 ? 'ready' : 'charging';
+  if (state.cpuCooldownTicks > 0) return 'charging';
+  return state.cpuThinkTicks === 0 ? 'ready' : 'thinking';
 }
 
 export function createStraightBenchRematch(state: StraightBenchState): StraightBenchState {
   if (state.match.phase !== 'RESULT') return state;
-  return createStraightBenchState(state.match.seed + 1, state.durationSeconds);
+  return createStraightBenchState(state.match.seed + 1, state.durationSeconds, state.difficulty);
 }
 
 export function stepStraightBench(state: StraightBenchState, ticks = 1): StraightBenchState {

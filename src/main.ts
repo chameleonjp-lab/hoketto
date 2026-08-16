@@ -295,6 +295,7 @@ function enterGame(seed = nextSeed): void {
     game = mountTechnicalProbe(gameRoot, {
       seed,
       durationSeconds: flow.selection.mode === 'trial' ? 30 : 90,
+      difficulty: flow.selection.difficulty,
       onResult: handleGameResult,
       onShot: (owner) => soundController.playShot(owner),
       onGoal: (team) => soundController.playGoal(team),
