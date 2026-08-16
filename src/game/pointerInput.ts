@@ -11,6 +11,18 @@ export interface PointerInputRules {
   };
   readonly viewport: { readonly width: number; readonly height: number };
   readonly exclusionPixels: number;
+  readonly forward?: {
+    readonly origin: Point;
+    readonly minimumDistance: number;
+    readonly axis: 'up' | 'down';
+  };
+}
+
+export interface InputBounds {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
 }
 
 export type PointerInputEvent =
@@ -40,27 +52,33 @@ const initialState: PointerInputState = {
   valid: false,
 };
 
-function insideBoard(point: Point, rules: PointerInputRules): boolean {
-  return (
-    point.x >= rules.board.left &&
-    point.x <= rules.board.right &&
-    point.y >= rules.board.top &&
-    point.y <= rules.board.bottom
-  );
-}
-
-function insideExclusionBand(point: Point, rules: PointerInputRules): boolean {
+export function getInputBounds(rules: PointerInputRules): InputBounds {
   const band = rules.exclusionPixels;
-  return (
-    point.x < band ||
-    point.y < band ||
-    point.x > rules.viewport.width - band ||
-    point.y > rules.viewport.height - band
-  );
+  const bounds: InputBounds = {
+    left: Math.max(rules.board.left, band),
+    top: Math.max(rules.board.top, band),
+    right: Math.min(rules.board.right, rules.viewport.width - band),
+    bottom: Math.min(rules.board.bottom, rules.viewport.height - band),
+  };
+  if (!rules.forward) return bounds;
+
+  const forwardEdge =
+    rules.forward.axis === 'up'
+      ? rules.forward.origin.y - rules.forward.minimumDistance
+      : rules.forward.origin.y + rules.forward.minimumDistance;
+  return rules.forward.axis === 'up'
+    ? { ...bounds, bottom: Math.min(bounds.bottom, forwardEdge) }
+    : { ...bounds, top: Math.max(bounds.top, forwardEdge) };
 }
 
-function isValidPoint(point: Point, rules: PointerInputRules): boolean {
-  return insideBoard(point, rules) && !insideExclusionBand(point, rules);
+export function isValidInputPoint(point: Point, rules: PointerInputRules): boolean {
+  const bounds = getInputBounds(rules);
+  return (
+    point.x >= bounds.left &&
+    point.x <= bounds.right &&
+    point.y >= bounds.top &&
+    point.y <= bounds.bottom
+  );
 }
 
 export class PointerInputController {
@@ -81,7 +99,7 @@ export class PointerInputController {
     if (this.state.phase === 'CHARGING') {
       return { kind: 'charging-notice', pointerId };
     }
-    if (this.state.phase !== 'READY' || !isValidPoint(point, this.rules)) {
+    if (this.state.phase !== 'READY' || !isValidInputPoint(point, this.rules)) {
       return { kind: 'ignored', pointerId };
     }
     this.state = {
@@ -97,7 +115,7 @@ export class PointerInputController {
     if (this.state.activePointerId !== pointerId || this.state.phase !== 'AIMING') {
       return { kind: 'ignored', pointerId };
     }
-    if (!isValidPoint(point, this.rules)) {
+    if (!isValidInputPoint(point, this.rules)) {
       return this.cancel('outside-input-area');
     }
     this.state = { ...this.state, point, valid: true };
@@ -108,7 +126,7 @@ export class PointerInputController {
     if (this.state.activePointerId !== pointerId || this.state.phase !== 'AIMING') {
       return { kind: 'ignored', pointerId };
     }
-    if (!isValidPoint(point, this.rules) || !this.state.valid) {
+    if (!isValidInputPoint(point, this.rules) || !this.state.valid) {
       return this.cancel('outside-input-area');
     }
     this.state = { ...initialState, phase: 'CHARGING' };

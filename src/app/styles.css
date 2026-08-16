@@ -344,8 +344,27 @@ h2 {
   justify-content: space-between;
 }
 
+.game-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .home-button {
   flex: 0 0 auto;
+}
+
+.game-root canvas {
+  display: block;
+  max-width: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+.game-root canvas:focus-visible {
+  outline: 3px solid #f5c451;
+  outline-offset: 4px;
 }
 
 .tutorial-board {

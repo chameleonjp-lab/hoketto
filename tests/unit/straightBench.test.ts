@@ -18,6 +18,8 @@ import {
   getCpuTurretReadiness,
   getGoalOpeningBounds,
   getPlayerTurretReadiness,
+  beginStraightBenchResume,
+  suspendStraightBench,
   stepStraightBench,
 } from '../../src/game/straightBench';
 
@@ -38,6 +40,21 @@ describe('straight bench simulation', () => {
     expect(state.durationSeconds).toBe(30);
     expect(state.match.ticksRemaining).toBe(30 * 120);
     expect(state.pucks).toHaveLength(1);
+  });
+
+  it('手動停止中は時計と物理を止め、明示再開後に3秒数える', () => {
+    const progressed = stepStraightBench(createStraightBenchState(20260814), 30);
+    const suspended = suspendStraightBench(progressed);
+
+    expect(suspended.match.phase).toBe('SUSPENDED');
+    expect(stepStraightBench(suspended, 120)).toEqual(suspended);
+
+    const countdown = beginStraightBenchResume(suspended);
+    expect(countdown.match.phase).toBe('COUNTDOWN');
+    expect(countdown.match.resumeCountdownTicks).toBe(3 * 120);
+    const resumed = stepStraightBench(countdown, 3 * 120);
+    expect(resumed.match.phase).toBe('PLAYING');
+    expect(resumed.match.tick).toBe(progressed.match.tick);
   });
 
   it('ふつうCPUは、れんしゅうより早く考え、同じ弾速と命中規則を使う', () => {
