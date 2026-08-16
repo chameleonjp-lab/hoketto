@@ -27,6 +27,12 @@ import {
 import { mountTechnicalProbe, type TechnicalProbeResult } from './game/TechnicalProbe';
 import { SoundController } from './audio/sound';
 import { loadAudioSettings, saveAudioSettings } from './app/audioSettings';
+import {
+  appendPlayRecord,
+  formatPlayRecordsForCopy,
+  loadPlayRecords,
+  savePlayRecords,
+} from './app/playRecords';
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -69,7 +75,10 @@ const resultScreen = requireElement<HTMLElement>('#result-screen');
 const resultTitle = requireElement<HTMLElement>('#result-title');
 const resultScore = requireElement<HTMLElement>('#result-score');
 const resultDetail = requireElement<HTMLElement>('#result-detail');
+const resultRecordNote = requireElement<HTMLElement>('#result-record-note');
+const resultRecordExport = requireElement<HTMLElement>('#result-record-export');
 const resultRematchButton = requireElement<HTMLButtonElement>('#result-rematch');
+const resultCopyButton = requireElement<HTMLButtonElement>('#result-copy');
 const resultHomeButton = requireElement<HTMLButtonElement>('#result-home');
 
 let flow: AppFlowState = createAppFlowState();
@@ -84,6 +93,15 @@ let settingsPersistenceWarning =
     : loadedAudioSettings.status === 'recovered'
       ? '保存された音設定を読み直せなかったため、無音に戻しました。'
       : '';
+const loadedPlayRecords = loadPlayRecords();
+let playRecords = [...loadedPlayRecords.records];
+let recordPersistenceWarning =
+  loadedPlayRecords.status === 'unavailable'
+    ? '試遊記録をこの端末へ保存できません。試合はそのまま遊べます。'
+    : loadedPlayRecords.status === 'recovered'
+      ? '保存された試遊記録の一部を読み直せなかったため、破棄しました。'
+      : '';
+let recordCopyNote = '';
 let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
 let tutorialWaitTimer: number | null = null;
@@ -101,6 +119,7 @@ function resetResultButtons(): void {
     resultButtonsTimer = null;
   }
   resultRematchButton.disabled = true;
+  resultCopyButton.disabled = true;
   resultHomeButton.disabled = true;
 }
 
@@ -110,6 +129,7 @@ function armResultButtons(): void {
     resultButtonsTimer = null;
     if (flow.screen !== 'RESULT') return;
     resultRematchButton.disabled = false;
+    resultCopyButton.disabled = false;
     resultHomeButton.disabled = false;
     resultRematchButton.focus();
   }, 300);
@@ -237,10 +257,16 @@ function render(): void {
           : '引き分け';
     resultScore.textContent = `自分 ${result.playerScore}　｜　相手 ${result.cpuScore}`;
     resultDetail.textContent = `盤面：${boardLabel(result.selection.board)}　｜　CPU：${difficultyLabel(result.selection.difficulty)}　｜　${modeLabel(result.selection.mode)}`;
+    resultRecordNote.textContent = [recordPersistenceWarning, recordCopyNote]
+      .filter(Boolean)
+      .join(' ');
+    resultRecordExport.textContent = formatPlayRecordsForCopy(playRecords);
   } else {
     resultTitle.textContent = '試合結果';
     resultScore.textContent = '';
     resultDetail.textContent = '';
+    resultRecordNote.textContent = '';
+    resultRecordExport.textContent = '';
   }
 }
 
@@ -272,7 +298,13 @@ function disposeGame(): void {
 
 function handleGameResult(result: TechnicalProbeResult): void {
   disposeGame();
-  const nextFlow = showResult(flow, { ...result, selection: flow.selection });
+  const completedResult = { ...result, selection: flow.selection };
+  playRecords = appendPlayRecord(playRecords, completedResult);
+  recordPersistenceWarning = savePlayRecords(playRecords)
+    ? ''
+    : '試遊記録をこの端末へ保存できません。試合はそのまま遊べます。';
+  recordCopyNote = '';
+  const nextFlow = showResult(flow, completedResult);
   if (nextFlow === flow) return;
   flow = nextFlow;
   render();
@@ -447,6 +479,21 @@ resultRematchButton.addEventListener('click', () => {
   if (!result) return;
   flow = startRematch(flow);
   enterGame(result.seed + 1);
+});
+
+resultCopyButton.addEventListener('click', async () => {
+  if (!flow.result) return;
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+    await navigator.clipboard.writeText(formatPlayRecordsForCopy(playRecords));
+    if (flow.screen !== 'RESULT') return;
+    recordCopyNote = '試遊記録をコピーしました。';
+  } catch {
+    if (flow.screen !== 'RESULT') return;
+    recordCopyNote = '自動コピーできません。下の記録を選択してコピーしてください。';
+  }
+  render();
+  resultCopyButton.focus();
 });
 
 resultHomeButton.addEventListener('click', () => {
