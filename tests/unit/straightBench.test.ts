@@ -60,6 +60,43 @@ describe('straight bench simulation', () => {
     expect(createStraightBenchRematch(result).difficulty).toBe('normal');
   });
 
+  it('ツイン・ブロックは選択した盤面と初期パックを保持する', () => {
+    const state = createStraightBenchState(20260814, 90, 'practice', 'twin-block');
+
+    expect(state.board).toBe('twin-block');
+    expect(state.pucks[0]?.position).toEqual({ x: 180, y: 320 });
+  });
+
+  it('ツイン・ブロックの障害物は弾を止める', () => {
+    const fired = firePlayerShot(createStraightBenchState(20260814, 90, 'practice', 'twin-block'), {
+      x: 80,
+      y: 320,
+    });
+    const afterBlock = stepStraightBench(fired, 50);
+
+    expect(afterBlock.bullets.filter((bullet) => bullet.owner === 'player')).toHaveLength(0);
+    expect(afterBlock.pucks[0]?.velocity).toEqual({ x: 0, y: 0 });
+  });
+
+  it('ツイン・ブロックのパックは障害物の面で跳ね返る', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice', 'twin-block');
+    const nearBlock = {
+      ...initial,
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          position: { x: 130, y: 320 },
+          velocity: { x: -360, y: 0 },
+        },
+      ],
+    };
+
+    const bounced = stepStraightBench(nearBlock, 5);
+
+    expect(bounced.pucks[0]?.velocity.x).toBeGreaterThan(0);
+    expect(bounced.pucks[0]?.position.x).toBeGreaterThan(112);
+  });
+
   it('弾が高速でもパックを通り抜けず、命中した方向へ押す', () => {
     const fired = firePlayerShot(createStraightBenchState(), { x: 180, y: 320 });
     const afterHit = stepStraightBench(fired, 40);
