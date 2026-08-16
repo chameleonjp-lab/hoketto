@@ -19,6 +19,7 @@ import {
   getGoalOpeningBounds,
   getPlayerTurretReadiness,
   beginStraightBenchResume,
+  invalidateStraightBench,
   suspendStraightBench,
   stepStraightBench,
 } from '../../src/game/straightBench';
@@ -55,6 +56,16 @@ describe('straight bench simulation', () => {
     const resumed = stepStraightBench(countdown, 3 * 120);
     expect(resumed.match.phase).toBe('PLAYING');
     expect(resumed.match.tick).toBe(progressed.match.tick);
+  });
+
+  it('復元不能な試合はINVALIDへ移り、弾を残さない', () => {
+    const fired = firePlayerShot(createStraightBenchState(20260814), { x: 180, y: 320 });
+    const invalid = invalidateStraightBench(fired, 'render-restore-timeout');
+
+    expect(invalid.match.phase).toBe('INVALID');
+    expect(invalid.match.invalidReason).toBe('render-restore-timeout');
+    expect(invalid.invalidReason).toBe('render-restore-timeout');
+    expect(invalid.bullets).toHaveLength(0);
   });
 
   it('ふつうCPUは、れんしゅうより早く考え、同じ弾速と命中規則を使う', () => {
