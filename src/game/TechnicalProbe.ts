@@ -24,21 +24,36 @@ import {
   secondsRemaining,
   stepStraightBench,
   suspendStraightBench,
+  invalidateStraightBench,
   type TurretReadiness,
   type CpuDifficulty,
   type StraightBenchState,
 } from './straightBench';
-import { MATCH_SECONDS } from '../domain/match';
+import { MATCH_SECONDS, type SuspensionReason } from '../domain/match';
+import {
+  SystemLifecycleController,
+  type SystemLifecycleEvent,
+  type SystemLifecycleReason,
+} from './systemLifecycle';
 
 const WIDTH = STRAIGHT_BENCH_WIDTH;
 const HEIGHT = STRAIGHT_BENCH_HEIGHT;
 const BOARD_MARGIN = 24;
+const RENDER_RESTORE_TIMEOUT_MS = 5_000;
 
 export interface TechnicalProbeResult {
   readonly playerScore: number;
   readonly cpuScore: number;
   readonly seed: number;
   readonly winner: 'PLAYER' | 'CPU' | 'DRAW';
+}
+
+export type TechnicalProbePausePhase = 'playing' | 'paused' | 'resuming' | 'invalid';
+
+export interface TechnicalProbePauseState {
+  readonly phase: TechnicalProbePausePhase;
+  readonly reason?: SuspensionReason;
+  readonly canResume: boolean;
 }
 
 export interface TechnicalProbeOptions {
@@ -49,7 +64,7 @@ export interface TechnicalProbeOptions {
   readonly onResult?: (result: TechnicalProbeResult) => void;
   readonly onShot?: (owner: 'player' | 'cpu') => void;
   readonly onGoal?: (team: 'player' | 'cpu') => void;
-  readonly onPauseChange?: (state: 'playing' | 'paused' | 'resuming') => void;
+  readonly onPauseChange?: (state: TechnicalProbePauseState) => void;
 }
 
 class TechnicalProbeScene extends Phaser.Scene {
@@ -92,6 +107,11 @@ class TechnicalProbeScene extends Phaser.Scene {
   private resultReported = false;
   private lastPhase: StraightBenchState['match']['phase'] = 'PLAYING';
   private readonly options: TechnicalProbeOptions;
+  private readonly systemLifecycle = new SystemLifecycleController();
+  private resizeObserver: ResizeObserver | null = null;
+  private resizeFrame: number | null = null;
+  private lastCanvasSize: { readonly width: number; readonly height: number } | null = null;
+  private renderRecoveryTimer: number | null = null;
 
   public constructor(options: TechnicalProbeOptions = {}) {
     super('technical-probe');
@@ -106,6 +126,7 @@ class TechnicalProbeScene extends Phaser.Scene {
 
   public create(): void {
     this.canvas = this.game.canvas;
+    this.lastCanvasSize = this.getCanvasSize();
     this.canvas.tabIndex = 0;
     this.canvas.setAttribute(
       'aria-label',
@@ -113,6 +134,9 @@ class TechnicalProbeScene extends Phaser.Scene {
     );
     this.canvas.addEventListener('focus', this.handleCanvasFocus);
     this.canvas.addEventListener('blur', this.handleCanvasBlur);
+    this.canvas.addEventListener('webglcontextlost', this.handleRenderContextLost);
+    this.canvas.addEventListener('webglcontextrestored', this.handleRenderContextRestored);
+    this.attachSystemLifecycleListeners();
     this.events.once('shutdown', this.handleShutdown, this);
     this.graphics = this.add.graphics();
     this.hudText = this.add.text(0, 0, '', {
@@ -150,7 +174,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.input.on('pointercancel', this.handlePointerCancel, this);
     this.input.keyboard?.on('keydown', this.handleKeyboardDown, this);
     this.syncKeyboardState();
-    this.options.onPauseChange?.('playing');
+    this.emitPauseState();
     this.render();
   }
 
@@ -178,7 +202,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       this.inputController.setCharging(true);
     }
     if (this.lastPhase === 'COUNTDOWN' && this.state.match.phase !== 'COUNTDOWN') {
-      this.options.onPauseChange?.('playing');
+      this.emitPauseState();
     }
     this.lastPhase = this.state.match.phase;
     this.syncKeyboardState();
@@ -275,10 +299,182 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.keyboardController.setFocused(false);
   };
 
+  private attachSystemLifecycleListeners(): void {
+    this.applySystemLifecycleEvent(
+      this.systemLifecycle.setVisibility(document.visibilityState !== 'hidden'),
+    );
+    this.applySystemLifecycleEvent(this.systemLifecycle.setPortrait(this.isPortrait()));
+    this.applySystemLifecycleEvent(this.systemLifecycle.setResizeReady(this.hasUsableCanvasSize()));
+
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    window.addEventListener('orientationchange', this.handleOrientationChange);
+    window.addEventListener('pagehide', this.handlePageHide);
+    window.addEventListener('pageshow', this.handlePageShow);
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', this.handleResize);
+    } else {
+      this.resizeObserver = new ResizeObserver(this.handleResize);
+      this.resizeObserver.observe(this.canvas);
+    }
+  }
+
+  private isPortrait(): boolean {
+    return window.matchMedia
+      ? window.matchMedia('(orientation: portrait)').matches
+      : window.innerHeight >= window.innerWidth;
+  }
+
+  private hasUsableCanvasSize(): boolean {
+    const { width, height } = this.getCanvasSize();
+    return width > 0 && height > 0;
+  }
+
+  private getCanvasSize(): { readonly width: number; readonly height: number } {
+    return {
+      width: this.canvas.clientWidth,
+      height: this.canvas.clientHeight,
+    };
+  }
+
+  private handleVisibilityChange = (): void => {
+    this.applySystemLifecycleEvent(
+      this.systemLifecycle.setVisibility(document.visibilityState !== 'hidden'),
+    );
+  };
+
+  private handleOrientationChange = (): void => {
+    this.applySystemLifecycleEvent(this.systemLifecycle.setPortrait(this.isPortrait()));
+  };
+
+  private handlePageHide = (event: PageTransitionEvent): void => {
+    if (event.persisted) {
+      this.applySystemLifecycleEvent(this.systemLifecycle.setVisibility(false));
+    }
+  };
+
+  private handlePageShow = (): void => {
+    this.applySystemLifecycleEvent(
+      this.systemLifecycle.setVisibility(document.visibilityState !== 'hidden'),
+    );
+    this.applySystemLifecycleEvent(this.systemLifecycle.setPortrait(this.isPortrait()));
+    this.applySystemLifecycleEvent(this.systemLifecycle.setResizeReady(this.hasUsableCanvasSize()));
+  };
+
+  private handleResize = (): void => {
+    const nextSize = this.getCanvasSize();
+    if (
+      this.lastCanvasSize?.width === nextSize.width &&
+      this.lastCanvasSize?.height === nextSize.height
+    ) {
+      return;
+    }
+    this.lastCanvasSize = nextSize;
+    this.applySystemLifecycleEvent(this.systemLifecycle.setResizeReady(false));
+    if (this.resizeFrame !== null) window.cancelAnimationFrame(this.resizeFrame);
+    this.resizeFrame = window.requestAnimationFrame(this.finishResize);
+  };
+
+  private finishResize = (): void => {
+    this.resizeFrame = null;
+    this.lastCanvasSize = this.getCanvasSize();
+    this.applySystemLifecycleEvent(this.systemLifecycle.setPortrait(this.isPortrait()));
+    this.applySystemLifecycleEvent(this.systemLifecycle.setResizeReady(this.hasUsableCanvasSize()));
+  };
+
+  private handleRenderContextLost = (event: Event): void => {
+    event.preventDefault();
+    this.clearRenderRecoveryTimer();
+    this.applySystemLifecycleEvent(this.systemLifecycle.setRenderReady(false));
+    this.renderRecoveryTimer = window.setTimeout(
+      this.handleRenderRecoveryTimeout,
+      RENDER_RESTORE_TIMEOUT_MS,
+    );
+  };
+
+  private handleRenderContextRestored = (): void => {
+    this.clearRenderRecoveryTimer();
+    this.applySystemLifecycleEvent(this.systemLifecycle.setRenderReady(true));
+    this.render();
+  };
+
+  private handleRenderRecoveryTimeout = (): void => {
+    this.renderRecoveryTimer = null;
+    if (
+      this.state.match.phase !== 'SUSPENDED' ||
+      this.state.match.suspensionReason !== 'render-loss' ||
+      this.systemLifecycle.getState().renderReady
+    ) {
+      return;
+    }
+    this.state = invalidateStraightBench(this.state, 'render-restore-timeout');
+    this.keyboardController.setPaused(true);
+    this.emitPauseState();
+    this.render();
+  };
+
+  private clearRenderRecoveryTimer(): void {
+    if (this.renderRecoveryTimer !== null) {
+      window.clearTimeout(this.renderRecoveryTimer);
+      this.renderRecoveryTimer = null;
+    }
+  }
+
+  private applySystemLifecycleEvent(event: SystemLifecycleEvent): void {
+    if (event.kind === 'suspend') {
+      this.suspendForSystem(event.reason);
+      return;
+    }
+    if (event.kind === 'resume-available' || event.kind === 'resume-blocked') {
+      this.emitPauseState();
+    }
+  }
+
+  private suspendForSystem(reason: SystemLifecycleReason): void {
+    if (this.state.match.phase === 'RESULT' || this.state.match.phase === 'INVALID') return;
+    this.applyInputEvent(this.inputController.stateChanged(`system-${reason}`));
+    this.aimPoint = null;
+    this.state = suspendStraightBench(this.state, reason);
+    this.accumulatorSeconds = 0;
+    this.keyboardController.setPaused(true);
+    this.emitPauseState();
+  }
+
+  private emitPauseState(): void {
+    const phase: TechnicalProbePausePhase =
+      this.state.match.phase === 'INVALID'
+        ? 'invalid'
+        : this.state.match.phase === 'SUSPENDED'
+          ? 'paused'
+          : this.state.match.phase === 'COUNTDOWN'
+            ? 'resuming'
+            : 'playing';
+    this.options.onPauseChange?.({
+      phase,
+      reason: this.state.match.suspensionReason,
+      canResume: phase === 'paused' && this.canResumeFromPause(),
+    });
+  }
+
+  private canResumeFromPause(): boolean {
+    return this.state.match.phase === 'SUSPENDED' && this.systemLifecycle.isReady();
+  }
+
   private handleShutdown = (): void => {
     this.input.keyboard?.off('keydown', this.handleKeyboardDown, this);
     this.canvas.removeEventListener('focus', this.handleCanvasFocus);
     this.canvas.removeEventListener('blur', this.handleCanvasBlur);
+    this.canvas.removeEventListener('webglcontextlost', this.handleRenderContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this.handleRenderContextRestored);
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    window.removeEventListener('orientationchange', this.handleOrientationChange);
+    window.removeEventListener('pagehide', this.handlePageHide);
+    window.removeEventListener('pageshow', this.handlePageShow);
+    window.removeEventListener('resize', this.handleResize);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    if (this.resizeFrame !== null) window.cancelAnimationFrame(this.resizeFrame);
+    this.resizeFrame = null;
+    this.clearRenderRecoveryTimer();
   };
 
   private handleKeyboardDown(event: KeyboardEvent): void {
@@ -342,15 +538,26 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.state = suspendStraightBench(this.state, 'manual');
     this.accumulatorSeconds = 0;
     this.keyboardController.setPaused(true);
-    this.options.onPauseChange?.('paused');
+    this.emitPauseState();
   }
 
   private resumeFromPause(): void {
     if (this.state.match.phase !== 'SUSPENDED') return;
+    if (!this.canResumeFromPause()) {
+      this.emitPauseState();
+      return;
+    }
+    if (this.systemLifecycle.getState().phase === 'SUSPENDED') {
+      const lifecycleEvent = this.systemLifecycle.requestResume();
+      if (lifecycleEvent.kind !== 'resume-requested') {
+        this.emitPauseState();
+        return;
+      }
+    }
     this.state = beginStraightBenchResume(this.state);
     this.accumulatorSeconds = 0;
     this.keyboardController.setPaused(false);
-    this.options.onPauseChange?.('resuming');
+    this.emitPauseState();
   }
 
   private applyInputEvent(event: PointerInputEvent): void {
@@ -521,11 +728,30 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (phase === 'GOAL_PAUSE') notices.push('GOAL');
     if (phase === 'OVERTIME_NOTICE') notices.push('延長15秒・先に1点');
     if (phase === 'OVERTIME') notices.push('延長・先に1点');
-    if (phase === 'SUSPENDED') notices.push('一時停止：EnterまたはSpaceで再開');
+    if (phase === 'SUSPENDED') {
+      const lifecycleState = this.systemLifecycle.getState();
+      if (!lifecycleState.visible) {
+        notices.push('画面に戻ると再開できます');
+      } else if (!lifecycleState.portrait) {
+        notices.push('縦向きに戻してください');
+      } else if (!lifecycleState.renderReady) {
+        notices.push('描画を復元しています');
+      } else if (!lifecycleState.resizeReady) {
+        notices.push('画面の大きさを確認しています');
+      } else if (this.state.match.suspensionReason === 'manual') {
+        notices.push('一時停止中');
+      } else {
+        notices.push('再開できます');
+      }
+      notices.push(
+        this.canResumeFromPause() ? 'EnterまたはSpace、または再開ボタン' : '再開条件を確認中',
+      );
+    }
     if (phase === 'COUNTDOWN') {
       notices.push(`再開まで ${Math.ceil(this.state.match.resumeCountdownTicks / FIXED_HZ)}秒`);
     }
     if (phase === 'RESULT') notices.push('結果を表示中');
+    if (phase === 'INVALID') notices.push('描画を復元できません。ホームへ戻ってやり直してください');
     if (phase === 'PLAYING') {
       const pressure = this.state.noScore;
       if (
