@@ -5,10 +5,14 @@ import {
   TICKS_PER_SECOND,
   advanceClock,
   applyGoals,
+  advanceResumeCountdown,
+  beginResume,
   createMatchState,
+  suspendMatch,
   type GoalEvent,
   type MatchPhase,
   type MatchState,
+  type SuspensionReason,
 } from '../domain/match';
 import type { Aabb, Circle, Point, Segment, Team } from '../domain/types';
 import {
@@ -867,6 +871,9 @@ function stepOne(state: StraightBenchState): StraightBenchState {
   if (state.invalidReason || state.match.phase === 'INVALID' || state.match.phase === 'RESULT') {
     return state;
   }
+  if (state.match.phase === 'COUNTDOWN') {
+    return { ...state, match: advanceResumeCountdown(state.match, 1) };
+  }
   if (state.match.phase === 'GOAL_PAUSE') return stepGoalPause(state);
   if (state.match.phase === 'OVERTIME_NOTICE') return stepOvertimeNotice(state);
   if (!isActivePhase(state.match.phase)) return state;
@@ -968,6 +975,19 @@ export function firePlayerShot(state: StraightBenchState, target: Point): Straig
 export function fireCpuShot(state: StraightBenchState, target: Point): StraightBenchState {
   if (state.cpuThinkTicks > 0) return state;
   return fireShot(state, 'cpu', target);
+}
+
+export function suspendStraightBench(
+  state: StraightBenchState,
+  reason: SuspensionReason = 'manual',
+): StraightBenchState {
+  const match = suspendMatch(state.match, reason);
+  return match === state.match ? state : { ...state, match };
+}
+
+export function beginStraightBenchResume(state: StraightBenchState): StraightBenchState {
+  const match = beginResume(state.match);
+  return match === state.match ? state : { ...state, match };
 }
 
 export function getPlayerTurretReadiness(state: StraightBenchState): TurretReadiness {
