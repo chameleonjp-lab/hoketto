@@ -67,6 +67,19 @@ describe('match state', () => {
     expect(resumed.suspensionReason).toBeUndefined();
   });
 
+  it('再開カウント中の再中断でも、同じ復帰先へ戻る', () => {
+    const suspended = suspendMatch(createMatchState(1234), 'hidden');
+    const countdown = beginResume(suspended);
+    const interrupted = suspendMatch(countdown, 'resize');
+    const restarted = beginResume(interrupted);
+    const resumed = advanceResumeCountdown(restarted, 3 * TICKS_PER_SECOND);
+
+    expect(interrupted.phase).toBe('SUSPENDED');
+    expect(interrupted.suspensionReason).toBe('resize');
+    expect(interrupted.resumeTarget).toBe('PLAYING');
+    expect(resumed.phase).toBe('PLAYING');
+  });
+
   it('復元不能はINVALIDへ移り、通常の結果にしない', () => {
     const invalid = invalidateMatch(
       suspendMatch(createMatchState(1234), 'render-loss'),

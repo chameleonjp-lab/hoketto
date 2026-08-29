@@ -60,11 +60,13 @@ export function suspendMatch(state: MatchState, reason: SuspensionReason): Match
   if (state.phase === 'RESULT' || state.phase === 'INVALID' || state.phase === 'SUSPENDED') {
     return state;
   }
+  const resumeTarget =
+    state.phase === 'COUNTDOWN' ? (state.resumeTarget ?? 'PLAYING') : state.phase;
   return {
     ...state,
     phase: 'SUSPENDED',
     suspensionReason: reason,
-    resumeTarget: state.phase,
+    resumeTarget,
     resumeCountdownTicks: 0,
   };
 }

@@ -48,6 +48,7 @@ export const NO_SCORE_PULSE_INTERVAL_SECONDS = 10;
 export const NO_SCORE_PULSE_SPEED = 160;
 export const NO_SCORE_PULSE_DURATION_TICKS = Math.round(0.35 * TICKS_PER_SECOND);
 export const GOAL_EXPANSION_RATIO = 0.12;
+export const OVERTIME_GOAL_EXPANSION_RATIO = 0.2;
 export type CpuDifficulty = 'practice' | 'normal';
 
 export const PRACTICE_CPU_REACTION_TICKS = Math.round(0.48 * TICKS_PER_SECOND);
@@ -212,7 +213,13 @@ function goalOpeningBoundsFor(
   goal: ReturnType<typeof getBoardDefinition>['goals'][number],
 ): { readonly minX: number; readonly maxX: number } {
   const expanded = state.match.phase === 'PLAYING' && state.noScore.goalExpanded;
-  const width = (goal.openingMaxX - goal.openingMinX) * (expanded ? 1 + GOAL_EXPANSION_RATIO : 1);
+  const expansionRatio =
+    state.match.phase === 'OVERTIME'
+      ? OVERTIME_GOAL_EXPANSION_RATIO
+      : expanded
+        ? GOAL_EXPANSION_RATIO
+        : 0;
+  const width = (goal.openingMaxX - goal.openingMinX) * (1 + expansionRatio);
   const center = (goal.openingMinX + goal.openingMaxX) / 2;
   return { minX: center - width / 2, maxX: center + width / 2 };
 }
