@@ -21,7 +21,7 @@
 | 手動停止・再開状態           | 通過 | `straightBench` と `keyboardInput`、SUSPENDED、明示再開、3秒カウント、停止中の固定更新停止を確認          |
 | システム中断ライフサイクル   | 通過 | `tests/unit/systemLifecycle.test.ts`、画面非表示、向き、表示領域、描画復元の条件・明示再開・再中断を確認  |
 | 延長ゴール幅                 | 通過 | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                               |
-| ブラウザ導線スモーク         | 通過 | `tests/browser/flow.spec.ts`、CI後にChromium／WebKit／Firefoxの3ブラウザ・12件を確認                      |
+| ブラウザ導線スモーク         | 通過 | `tests/browser/flow.spec.ts`、CI #348。Chromium／WebKit／Firefoxの3ブラウザ・12件を確認                   |
 | ストレート試合               | 通過 | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                |
 | ツイン・ブロック物理・盤面   | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認        |
 | リフレクト・レーン物理・盤面 | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の1回反射、パック反射を確認     |
