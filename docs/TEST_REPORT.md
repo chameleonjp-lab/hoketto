@@ -11,16 +11,16 @@
 | 形式                         | 通過 | `prettier --check .`、2026-08-17、全ファイル一致                                                          |
 | 静的検査                     | 通過 | `eslint .`、2026-08-17、終了コード0                                                                       |
 | 型検査                       | 通過 | `tsc --noEmit`、2026-08-17、終了コード0                                                                   |
-| 単体試験                     | 通過 | `vitest run`、2026-08-17、13ファイル・100件                                                                |
+| 単体試験                     | 通過 | `vitest run`、2026-08-17、13ファイル・100件                                                               |
 | 本番出力                     | 通過 | `vite build`、2026-08-17、`dist`生成。gzip JavaScriptは376.02KB                                           |
 | 10,000件の性質試験           | 通過 | `tests/property/collision.property.test.ts`、2026-08-15、10,000件                                         |
 | 線分・長方形の衝突           | 通過 | 単体試験と性質試験で時刻・接触距離を確認                                                                  |
-| 中断・復帰状態               | 通過 | `tests/unit/match.test.ts`、SUSPENDED、3秒再開、再開カウント中の再中断、INVALIDを確認                   |
+| 中断・復帰状態               | 通過 | `tests/unit/match.test.ts`、SUSPENDED、3秒再開、再開カウント中の再中断、INVALIDを確認                     |
 | Pointer入力状態              | 通過 | `tests/unit/pointerInput.test.ts`、取消・充電中・2本目・捕捉喪失を確認                                    |
 | キーボード入力状態           | 通過 | `tests/unit/keyboardInput.test.ts`、矢印移動、前方範囲、Enter／Spaceのリピート抑止、充電中、Escapeを確認  |
 | 手動停止・再開状態           | 通過 | `straightBench` と `keyboardInput`、SUSPENDED、明示再開、3秒カウント、停止中の固定更新停止を確認          |
 | システム中断ライフサイクル   | 通過 | `tests/unit/systemLifecycle.test.ts`、画面非表示、向き、表示領域、描画復元の条件・明示再開・再中断を確認  |
-| 延長ゴール幅                 | 通過 | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                              |
+| 延長ゴール幅                 | 通過 | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                               |
 | ブラウザ導線スモーク         | 通過 | `tests/browser/flow.spec.ts`、CI後にChromium／WebKit／Firefoxの3ブラウザ・12件を確認                    |
 | ストレート試合               | 通過 | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                |
 | ツイン・ブロック物理・盤面   | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認        |
