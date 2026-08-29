@@ -35,6 +35,7 @@ import {
   type SystemLifecycleEvent,
   type SystemLifecycleReason,
 } from './systemLifecycle';
+import { advanceFixedStepClock, createFixedStepClockState } from './fixedStepClock';
 
 const WIDTH = STRAIGHT_BENCH_WIDTH;
 const HEIGHT = STRAIGHT_BENCH_HEIGHT;
@@ -103,7 +104,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   });
   private state: StraightBenchState;
   private aimPoint: Point | null = null;
-  private accumulatorSeconds = 0;
+  private fixedStepClock = createFixedStepClockState();
   private resultReported = false;
   private lastPhase: StraightBenchState['match']['phase'] = 'PLAYING';
   private readonly options: TechnicalProbeOptions;
@@ -179,17 +180,16 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   public update(_time: number, delta: number): void {
-    if (this.state.match.phase !== 'SUSPENDED') {
-      this.accumulatorSeconds += Math.min(delta, 100) / 1000;
+    const phase = this.state.match.phase;
+    if (phase === 'SUSPENDED' || phase === 'RESULT' || phase === 'INVALID') {
+      this.fixedStepClock = createFixedStepClockState();
     } else {
-      this.accumulatorSeconds = 0;
-    }
-    const fixedSeconds = 1 / FIXED_HZ;
-    let steps = 0;
-    while (this.accumulatorSeconds >= fixedSeconds && steps < 12) {
-      this.advanceFixedTick();
-      this.accumulatorSeconds -= fixedSeconds;
-      steps += 1;
+      const fixedStepAdvance = advanceFixedStepClock(this.fixedStepClock, delta, FIXED_HZ);
+      this.fixedStepClock = fixedStepAdvance.state;
+      for (let step = 0; step < fixedStepAdvance.steps; step += 1) {
+        this.advanceFixedTick();
+      }
+      if (fixedStepAdvance.shouldSuspend) this.suspendForPerformance();
     }
 
     if (this.inputController.getState().phase === 'AIMING' && !this.canAim()) {
@@ -434,7 +434,23 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.applyInputEvent(this.inputController.stateChanged(`system-${reason}`));
     this.aimPoint = null;
     this.state = suspendStraightBench(this.state, reason);
-    this.accumulatorSeconds = 0;
+    this.fixedStepClock = createFixedStepClockState();
+    this.keyboardController.setPaused(true);
+    this.emitPauseState();
+  }
+
+  private suspendForPerformance(): void {
+    if (
+      this.state.match.phase === 'RESULT' ||
+      this.state.match.phase === 'INVALID' ||
+      this.state.match.phase === 'SUSPENDED'
+    ) {
+      return;
+    }
+    this.applyInputEvent(this.inputController.stateChanged('performance-lag'));
+    this.aimPoint = null;
+    this.state = suspendStraightBench(this.state, 'lag');
+    this.fixedStepClock = createFixedStepClockState();
     this.keyboardController.setPaused(true);
     this.emitPauseState();
   }
@@ -536,7 +552,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.applyInputEvent(this.inputController.stateChanged('manual-pause'));
     this.aimPoint = null;
     this.state = suspendStraightBench(this.state, 'manual');
-    this.accumulatorSeconds = 0;
+    this.fixedStepClock = createFixedStepClockState();
     this.keyboardController.setPaused(true);
     this.emitPauseState();
   }
@@ -555,7 +571,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       }
     }
     this.state = beginStraightBenchResume(this.state);
-    this.accumulatorSeconds = 0;
+    this.fixedStepClock = createFixedStepClockState();
     this.keyboardController.setPaused(false);
     this.emitPauseState();
   }
@@ -738,6 +754,8 @@ class TechnicalProbeScene extends Phaser.Scene {
         notices.push('描画を復元しています');
       } else if (!lifecycleState.resizeReady) {
         notices.push('画面の大きさを確認しています');
+      } else if (this.state.match.suspensionReason === 'lag') {
+        notices.push('処理遅延を検知したため停止しました');
       } else if (this.state.match.suspensionReason === 'manual') {
         notices.push('一時停止中');
       } else {

@@ -80,6 +80,14 @@ describe('match state', () => {
     expect(resumed.phase).toBe('PLAYING');
   });
 
+  it('処理遅延を理由に中断しても、復帰先を保持する', () => {
+    const suspended = suspendMatch(createMatchState(1234), 'lag');
+
+    expect(suspended.phase).toBe('SUSPENDED');
+    expect(suspended.suspensionReason).toBe('lag');
+    expect(suspended.resumeTarget).toBe('PLAYING');
+  });
+
   it('復元不能はINVALIDへ移り、通常の結果にしない', () => {
     const invalid = invalidateMatch(
       suspendMatch(createMatchState(1234), 'render-loss'),
