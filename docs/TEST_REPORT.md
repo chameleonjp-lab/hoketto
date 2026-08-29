@@ -8,11 +8,11 @@
 
 | 確認                         | 状態   | 証拠                                                                                                                      |
 | ---------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| 形式                         | 通過   | `prettier --check .`、CI #356、全ファイル一致                                                                             |
-| 静的検査                     | 通過   | `eslint .`、CI #356、終了コード0                                                                                          |
-| 型検査                       | 通過   | `tsc --noEmit`、CI #356、終了コード0                                                                                      |
-| 単体試験                     | 通過   | `vitest run`、CI #356、14ファイル・108件                                                                                  |
-| 本番出力                     | 通過   | `vite build`、CI #356、`dist`生成。gzip JavaScriptは376.40KB                                                              |
+| 形式                         | 通過   | `prettier --check .`、CI #362、全ファイル一致                                                                             |
+| 静的検査                     | 通過   | `eslint .`、CI #362、終了コード0                                                                                          |
+| 型検査                       | 通過   | `tsc --noEmit`、CI #362、終了コード0                                                                                      |
+| 単体試験                     | 通過   | `vitest run`、CI #362、14ファイル・108件                                                                                  |
+| 本番出力                     | 通過   | `vite build`、CI #362、`dist`生成。gzip JavaScriptは376.79KB                                                              |
 | 10,000件の性質試験           | 通過   | `tests/property/collision.property.test.ts`、2026-08-15、10,000件                                                         |
 | 線分・長方形の衝突           | 通過   | 単体試験と性質試験で時刻・接触距離を確認                                                                                  |
 | 中断・復帰状態               | 通過   | `tests/unit/match.test.ts`、SUSPENDED、3秒再開、再開カウント中の再中断、INVALIDを確認                                     |
@@ -20,10 +20,10 @@
 | キーボード入力状態           | 通過   | `tests/unit/keyboardInput.test.ts`、矢印移動、前方範囲、Enter／Spaceのリピート抑止、充電中、Escapeを確認                  |
 | 手動停止・再開状態           | 通過   | `straightBench` と `keyboardInput`、SUSPENDED、明示再開、3秒カウント、停止中の固定更新停止を確認                          |
 | システム中断ライフサイクル   | 通過   | `tests/unit/systemLifecycle.test.ts`、画面非表示、向き、表示領域、描画復元の条件・明示再開・再中断を確認                  |
-| 試合目的・状態通知           | 確認中 | `tests/browser/flow.spec.ts`、目的文、試合開始、手動停止の画面読み上げ情報を確認予定                                      |
-| 固定更新の遅延蓄積           | 通過   | `tests/unit/fixedStepClock.test.ts`、CI #356、1描画最大8更新、未処理30更新以上、2更新超30描画連続時の中断・蓄積破棄を確認 |
+| 試合目的・状態通知           | 通過   | `tests/browser/flow.spec.ts`、CI #362、目的文、試合開始、手動停止の画面読み上げ情報を確認                                      |
+| 固定更新の遅延蓄積           | 通過   | `tests/unit/fixedStepClock.test.ts`、CI #362、1描画最大8更新、未処理30更新以上、2更新超30描画連続時の中断・蓄積破棄を確認 |
 | 延長ゴール幅                 | 通過   | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                                               |
-| ブラウザ導線スモーク         | 通過   | `tests/browser/flow.spec.ts`、CI #356。Chromium／WebKit／Firefoxの3ブラウザ・12件を確認                                   |
+| ブラウザ導線スモーク         | 通過   | `tests/browser/flow.spec.ts`、CI #362。Chromium／WebKit／Firefoxの3ブラウザ・15件を確認                                   |
 | ストレート試合               | 通過   | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                                |
 | ツイン・ブロック物理・盤面   | 通過   | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認                        |
 | リフレクト・レーン物理・盤面 | 通過   | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の1回反射、パック反射を確認                     |
