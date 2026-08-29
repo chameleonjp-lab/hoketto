@@ -63,6 +63,18 @@ button:focus-visible {
   display: none !important;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .shell {
   width: min(100% - 32px, 760px);
   margin: 0 auto;

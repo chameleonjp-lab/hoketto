@@ -53,6 +53,7 @@ const selectionScreen = requireElement<HTMLElement>('#selection-screen');
 const gameScreen = requireElement<HTMLElement>('#game-screen');
 const gameBoardLabel = requireElement<HTMLElement>('#game-board-label');
 const gameRoot = requireElement<HTMLElement>('#game-root');
+const gameLiveStatus = requireElement<HTMLElement>('#game-live-status');
 const gamePauseButton = requireElement<HTMLButtonElement>('#game-pause');
 const settingsScreen = requireElement<HTMLElement>('#settings-screen');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
@@ -138,6 +139,38 @@ function updatePauseButton(state: TechnicalProbePauseState): void {
         : state.phase === 'resuming'
           ? '再開中…'
           : '一時停止';
+  updateGameLiveStatusForPause(state);
+}
+
+function updateGameLiveStatus(message: string): void {
+  gameLiveStatus.textContent = message;
+}
+
+function pauseReasonMessage(reason: TechnicalProbePauseState['reason']): string {
+  if (reason === 'lag') return '処理遅延を検知したため、試合を止めました。';
+  if (reason === 'manual') return '試合を一時停止しました。';
+  if (reason === 'hidden') return '画面が非表示になったため、試合を止めました。';
+  if (reason === 'orientation') return '画面の向きが変わったため、試合を止めました。';
+  if (reason === 'resize') return '画面の大きさが変わったため、試合を止めました。';
+  if (reason === 'render-loss') return '描画を復元するため、試合を止めました。';
+  return '試合を中断しました。';
+}
+
+function updateGameLiveStatusForPause(state: TechnicalProbePauseState): void {
+  if (state.phase === 'invalid') {
+    updateGameLiveStatus(
+      '描画を復元できないため、試合を無効にしました。ホームへ戻ってやり直してください。',
+    );
+    return;
+  }
+  if (state.phase === 'resuming') {
+    updateGameLiveStatus('試合を再開しています。3秒待ってください。');
+    return;
+  }
+  if (state.phase !== 'paused') return;
+  updateGameLiveStatus(
+    `${pauseReasonMessage(state.reason)}${state.canResume ? '再開を押してください。' : '再開条件を確認しています。'}`,
+  );
 }
 
 function clearTutorialWaitTimer(): void {
@@ -316,6 +349,7 @@ function enterGame(seed = nextSeed): void {
   nextSeed = seed + 1;
   flow = startGame(flow);
   render();
+  updateGameLiveStatus('試合開始。下から弾を撃ち、白いパックを上の相手ゴールへ入れます。');
   if (!game) {
     game = mountTechnicalProbe(gameRoot, {
       seed,
@@ -328,8 +362,19 @@ function enterGame(seed = nextSeed): void {
             ? 'ricochet-lane'
             : 'straight-bench',
       onResult: handleGameResult,
-      onShot: (owner) => soundController.playShot(owner),
-      onGoal: (team) => soundController.playGoal(team),
+      onShot: (owner) => {
+        soundController.playShot(owner);
+        if (owner === 'player') {
+          updateGameLiveStatus('自分が弾を発射しました。充電が戻るまで待ちます。');
+        }
+      },
+      onGoal: (team, scores) => {
+        soundController.playGoal(team);
+        const side = team === 'player' ? '自分' : '相手';
+        updateGameLiveStatus(
+          `${side}が得点しました。現在、自分 ${scores.playerScore}、相手 ${scores.cpuScore}。`,
+        );
+      },
       onPauseChange: updatePauseButton,
     });
   }
@@ -348,6 +393,7 @@ function disposeGame(): void {
 }
 
 function handleGameResult(result: TechnicalProbeResult): void {
+  updateGameLiveStatus(`試合終了。自分 ${result.playerScore}、相手 ${result.cpuScore}。`);
   disposeGame();
   const completedResult = { ...result, selection: flow.selection };
   playRecords = appendPlayRecord(playRecords, completedResult);
