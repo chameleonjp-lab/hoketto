@@ -54,6 +54,37 @@ test.describe('ホケットのブラウザ導線', () => {
     await expect(pauseButton).toHaveText('再開中…');
   });
 
+  test('再開カウント中に中断しても、再開後に試合へ戻れる', async ({ page }) => {
+    await startTrial(page);
+
+    const pauseButton = page.locator('#game-pause');
+    await pauseButton.click();
+    await expect(pauseButton).toHaveText('再開');
+    await pauseButton.click();
+    await expect(pauseButton).toHaveText('再開中…');
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(pauseButton).toHaveText('再開待ち…');
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(pauseButton).toHaveText('再開');
+    await pauseButton.click();
+    await expect(pauseButton).toHaveText('再開中…');
+    await expect(pauseButton).toHaveText('一時停止', { timeout: 5_000 });
+  });
+
   test('音設定を同じブラウザへ保存し、再訪時に復元する', async ({ page }) => {
     await page.goto('/');
     await page.locator('#settings-button').click();

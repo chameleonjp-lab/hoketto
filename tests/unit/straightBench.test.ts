@@ -8,6 +8,7 @@ import {
   NO_SCORE_NOTICE_SECONDS,
   NO_SCORE_PULSE_INTERVAL_SECONDS,
   NO_SCORE_PULSE_SECONDS,
+  OVERTIME_GOAL_EXPANSION_RATIO,
   GOAL_PAUSE_TICKS,
   NORMAL_CPU_REACTION_TICKS,
   SHOT_COOLDOWN_TICKS,
@@ -277,6 +278,34 @@ describe('straight bench simulation', () => {
     expect(overtime.match.phase).toBe('OVERTIME');
     expect(overtime.core.phase).toBe('INACTIVE');
     expect(overtime.pucks).toHaveLength(1);
+  });
+
+  it('延長中はゴール開口部を20%広げ、通常時間では入らない位置も得点対象にする', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice');
+    const overtime = {
+      ...initial,
+      match: {
+        ...initial.match,
+        phase: 'OVERTIME' as const,
+        ticksRemaining: 15 * 120,
+      },
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          position: { x: 130, y: 30 },
+          velocity: { x: 0, y: -300 },
+        },
+      ],
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+    const baseOpening = getGoalOpeningBounds(initial, 'top');
+    const overtimeOpening = getGoalOpeningBounds(overtime, 'top');
+
+    expect(overtimeOpening.maxX - overtimeOpening.minX).toBeCloseTo(
+      (baseOpening.maxX - baseOpening.minX) * (1 + OVERTIME_GOAL_EXPANSION_RATIO),
+    );
+    expect(stepStraightBench(overtime, 10).match.playerScore).toBe(1);
   });
 
   it('無得点11秒で予告し、12秒で両ゴールを12%広げる', () => {
