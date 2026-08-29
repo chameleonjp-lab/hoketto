@@ -16,7 +16,8 @@ export type MatchPhase =
 
 export type ActiveMatchPhase = Exclude<MatchPhase, 'SUSPENDED' | 'INVALID'>;
 
-export type SuspensionReason = 'manual' | 'hidden' | 'orientation' | 'resize' | 'render-loss';
+export type SuspensionReason =
+  'manual' | 'hidden' | 'orientation' | 'resize' | 'render-loss' | 'lag';
 
 export interface MatchState {
   readonly phase: MatchPhase;
