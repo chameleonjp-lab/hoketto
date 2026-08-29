@@ -12,6 +12,16 @@ async function startTrial(page: Page): Promise<void> {
 }
 
 test.describe('ホケットのブラウザ導線', () => {
+  test('試合の目的と状態通知を確認できる', async ({ page }) => {
+    await startTrial(page);
+
+    await expect(page.locator('#game-instructions')).toContainText('下から弾を撃ち');
+    await expect(page.locator('#game-live-status')).toHaveText(/試合開始/);
+
+    await page.locator('#game-pause').click();
+    await expect(page.locator('#game-live-status')).toHaveText(/一時停止/);
+  });
+
   test('ホームから試合へ入り、手動停止と明示再開を完了できる', async ({ page }) => {
     await startTrial(page);
 

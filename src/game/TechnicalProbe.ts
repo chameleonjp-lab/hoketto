@@ -64,7 +64,10 @@ export interface TechnicalProbeOptions {
   readonly board?: PlayableBoardId;
   readonly onResult?: (result: TechnicalProbeResult) => void;
   readonly onShot?: (owner: 'player' | 'cpu') => void;
-  readonly onGoal?: (team: 'player' | 'cpu') => void;
+  readonly onGoal?: (
+    team: 'player' | 'cpu',
+    scores: { readonly playerScore: number; readonly cpuScore: number },
+  ) => void;
   readonly onPauseChange?: (state: TechnicalProbePauseState) => void;
 }
 
@@ -251,10 +254,16 @@ class TechnicalProbeScene extends Phaser.Scene {
       this.options.onShot?.('cpu');
     }
     if (this.state.match.playerScore > previous.match.playerScore) {
-      this.options.onGoal?.('player');
+      this.options.onGoal?.('player', {
+        playerScore: this.state.match.playerScore,
+        cpuScore: this.state.match.cpuScore,
+      });
     }
     if (this.state.match.cpuScore > previous.match.cpuScore) {
-      this.options.onGoal?.('cpu');
+      this.options.onGoal?.('cpu', {
+        playerScore: this.state.match.playerScore,
+        cpuScore: this.state.match.cpuScore,
+      });
     }
   }
 
