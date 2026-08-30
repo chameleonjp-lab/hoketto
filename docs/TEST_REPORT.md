@@ -24,7 +24,7 @@
 | 固定更新の遅延蓄積           | 通過 | `tests/unit/fixedStepClock.test.ts`、CI #362、1描画最大8更新、未処理30更新以上、2更新超30描画連続時の中断・蓄積破棄を確認 |
 | 延長ゴール幅                 | 通過 | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                                               |
 | ブラウザ導線スモーク         | 通過 | `tests/browser/flow.spec.ts`、CI #362。Chromium／WebKit／Firefoxの3ブラウザ・15件を確認                                   |
-| Pages公開物の一致             | 保留 | `.github/workflows/pages.yml`で`dist`を公開する。PRマージ後に公開URL、最新タイトル、JS／CSS、試合導線を確認予定 |
+| Pages公開物の一致            | 保留 | `.github/workflows/pages.yml`で`dist`を公開する。PRマージ後に公開URL、最新タイトル、JS／CSS、試合導線を確認予定           |
 | ストレート試合               | 通過 | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                                |
 | ツイン・ブロック物理・盤面   | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認                        |
 | リフレクト・レーン物理・盤面 | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の1回反射、パック反射を確認                     |
