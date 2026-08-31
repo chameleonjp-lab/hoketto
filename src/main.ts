@@ -179,7 +179,8 @@ function resultShareMessage(
   result: TechnicalProbeResult,
   selection: AppFlowState['selection'],
 ): string {
-  const winner = result.winner === 'PLAYER' ? '自分の勝ち' : result.winner === 'CPU' ? '相手の勝ち' : '引き分け';
+  const winner =
+    result.winner === 'PLAYER' ? '自分の勝ち' : result.winner === 'CPU' ? '相手の勝ち' : '引き分け';
   return `ホケットで${winner}！\n自分 ${result.playerScore} - 相手 ${result.cpuScore}\n${boardLabel(selection.board)}／${difficultyLabel(selection.difficulty)}／${modeLabel(selection.mode)}\n${currentGameUrl()}\n#カメレオンJP #ホケット`;
 }
 
@@ -258,9 +259,10 @@ async function submitAndLoadRanking(result: TechnicalProbeResult): Promise<void>
 
 function renderPlayerNameState(): void {
   if (playerNameInput.value !== playerName) playerNameInput.value = playerName;
-  playerNameNote.textContent = playerName.length > 0
-    ? `${playerName}さんの名前でランキングに参加します。`
-    : '名前を入力するとゲームを開始できます。';
+  playerNameNote.textContent =
+    playerName.length > 0
+      ? `${playerName}さんの名前でランキングに参加します。`
+      : '名前を入力するとゲームを開始できます。';
   playButton.disabled = playerName.length === 0;
   selectionStartButton.disabled = !canStartSelection(flow.selection) || playerName.length === 0;
   homeShareStatus.textContent = homeShareNote;
@@ -576,11 +578,12 @@ playerNameInput.addEventListener('input', () => {
 
 homeShareButton.addEventListener('click', async () => {
   const outcome = await shareOrCopy(homeShareMessage());
-  homeShareNote = outcome === 'shared'
-    ? '共有シートを開きました。'
-    : outcome === 'copied'
-      ? 'ゲームのリンクをコピーしました。'
-      : '共有できませんでした。リンクを選択して共有してください。';
+  homeShareNote =
+    outcome === 'shared'
+      ? '共有シートを開きました。'
+      : outcome === 'copied'
+        ? 'ゲームのリンクをコピーしました。'
+        : '共有できませんでした。リンクを選択して共有してください。';
   renderPlayerNameState();
   homeShareButton.focus();
 });
@@ -782,11 +785,12 @@ resultShareButton.addEventListener('click', async () => {
   const result = flow.result;
   if (!result) return;
   const outcome = await shareOrCopy(resultShareMessage(result, result.selection));
-  resultShareNote = outcome === 'shared'
-    ? '共有シートを開きました。'
-    : outcome === 'copied'
-      ? '結果文をコピーしました。'
-      : '自動共有できません。上の文章を選択してコピーしてください。';
+  resultShareNote =
+    outcome === 'shared'
+      ? '共有シートを開きました。'
+      : outcome === 'copied'
+        ? '結果文をコピーしました。'
+        : '自動共有できません。上の文章を選択してコピーしてください。';
   render();
   resultShareButton.focus();
 });
