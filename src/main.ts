@@ -84,12 +84,27 @@ const homeButton = requireElement<HTMLButtonElement>('#home-button');
 const resultScreen = requireElement<HTMLElement>('#result-screen');
 const resultTitle = requireElement<HTMLElement>('#result-title');
 const resultScore = requireElement<HTMLElement>('#result-score');
+const resultPlayer = requireElement<HTMLElement>('#result-player');
 const resultDetail = requireElement<HTMLElement>('#result-detail');
+const resultShareText = requireElement<HTMLTextAreaElement>('#result-share-text');
+const resultShareButton = requireElement<HTMLButtonElement>('#result-share');
+const resultShareStatus = requireElement<HTMLElement>('#result-share-status');
+const homeShareButton = requireElement<HTMLButtonElement>('#home-share');
+const homeShareStatus = requireElement<HTMLElement>('#home-share-status');
+const playerNameInput = requireElement<HTMLInputElement>('#player-name');
+const playerNameNote = requireElement<HTMLElement>('#player-name-note');
+const rankingList = requireElement<HTMLOListElement>('#ranking-list');
+const rankingStatus = requireElement<HTMLElement>('#ranking-status');
 const resultRecordNote = requireElement<HTMLElement>('#result-record-note');
 const resultRecordExport = requireElement<HTMLElement>('#result-record-export');
 const resultRematchButton = requireElement<HTMLButtonElement>('#result-rematch');
 const resultCopyButton = requireElement<HTMLButtonElement>('#result-copy');
 const resultHomeButton = requireElement<HTMLButtonElement>('#result-home');
+
+const SUPABASE_URL = 'https://mlpnjgezrnhdxsxolyzj.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_drzcy0v97knU6FgjqSgBHw_0A9XPdFM';
+const GAME_SLUG = 'hoketto';
+const CLIENT_VERSION = 'hoketto-2026-08-31';
 
 let flow: AppFlowState = createAppFlowState();
 let game: ReturnType<typeof mountTechnicalProbe> | null = null;
@@ -123,6 +138,133 @@ let progressPersistenceWarning =
 let nextSeed = 20260814;
 let resultButtonsTimer: number | null = null;
 let tutorialWaitTimer: number | null = null;
+let resultShareNote = '';
+let homeShareNote = '';
+let playerName = loadPlayerName();
+let rankingLoadKey = '';
+
+interface RankingRow {
+  readonly rank_no?: number;
+  readonly display_name?: string;
+  readonly player_name?: string;
+  readonly score?: number;
+  readonly best_score?: number;
+}
+
+function loadPlayerName(): string {
+  try {
+    return (window.localStorage.getItem('hoketto-player-name') ?? '').trim().slice(0, 20);
+  } catch {
+    return '';
+  }
+}
+
+function savePlayerName(value: string): void {
+  try {
+    window.localStorage.setItem('hoketto-player-name', value);
+  } catch {
+    // Private browsing may disable storage; the current session still works.
+  }
+}
+
+function currentGameUrl(): string {
+  return window.location.href.split('#')[0] ?? window.location.href;
+}
+
+function homeShareMessage(): string {
+  return `ホケット｜弾でパックを動かす縦画面スポーツゲーム\n${currentGameUrl()}\n#カメレオンJP #ホケット`;
+}
+
+function resultShareMessage(
+  result: TechnicalProbeResult,
+  selection: AppFlowState['selection'],
+): string {
+  const winner = result.winner === 'PLAYER' ? '自分の勝ち' : result.winner === 'CPU' ? '相手の勝ち' : '引き分け';
+  return `ホケットで${winner}！\n自分 ${result.playerScore} - 相手 ${result.cpuScore}\n${boardLabel(selection.board)}／${difficultyLabel(selection.difficulty)}／${modeLabel(selection.mode)}\n${currentGameUrl()}\n#カメレオンJP #ホケット`;
+}
+
+async function shareOrCopy(message: string): Promise<'shared' | 'copied' | 'manual'> {
+  try {
+    if (typeof navigator.share === 'function') {
+      await navigator.share({ title: 'ホケット', text: message });
+      return 'shared';
+    }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return 'manual';
+  }
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+    await navigator.clipboard.writeText(message);
+    return 'copied';
+  } catch {
+    return 'manual';
+  }
+}
+
+async function supabaseRpc<T>(name: string, body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error('ranking request failed');
+  return data as T;
+}
+
+function renderRanking(rows: RankingRow[]): void {
+  rankingList.replaceChildren();
+  if (rows.length === 0) {
+    const item = document.createElement('li');
+    item.textContent = 'まだ記録がありません。';
+    rankingList.append(item);
+    return;
+  }
+  rows.slice(0, 10).forEach((row, index) => {
+    const item = document.createElement('li');
+    const name = row.display_name ?? row.player_name ?? 'ななし';
+    const score = Number(row.score ?? row.best_score ?? 0);
+    item.textContent = `${row.rank_no ?? index + 1}位　${name}　${score}点`;
+    rankingList.append(item);
+  });
+}
+
+async function submitAndLoadRanking(result: TechnicalProbeResult): Promise<void> {
+  const key = `${result.seed}:${result.playerScore}:${result.cpuScore}`;
+  if (rankingLoadKey === key) return;
+  rankingLoadKey = key;
+  rankingStatus.textContent = 'ランキング送信中…';
+  try {
+    await supabaseRpc('submit_score', {
+      p_display_name: playerName,
+      p_game_slug: GAME_SLUG,
+      p_score: Math.trunc(result.playerScore),
+      p_client_version: CLIENT_VERSION,
+    });
+    const rows = await supabaseRpc<RankingRow[]>('get_best_score_ranking', {
+      p_game_slug: GAME_SLUG,
+      p_limit: 10,
+    });
+    renderRanking(Array.isArray(rows) ? rows : []);
+    rankingStatus.textContent = 'ランキングを更新しました。';
+  } catch {
+    rankingStatus.textContent = 'ランキングを取得できませんでした。ゲーム結果は保存されています。';
+  }
+}
+
+function renderPlayerNameState(): void {
+  if (playerNameInput.value !== playerName) playerNameInput.value = playerName;
+  playerNameNote.textContent = playerName.length > 0
+    ? `${playerName}さんの名前でランキングに参加します。`
+    : '名前を入力するとゲームを開始できます。';
+  playButton.disabled = playerName.length === 0;
+  selectionStartButton.disabled = !canStartSelection(flow.selection) || playerName.length === 0;
+  homeShareStatus.textContent = homeShareNote;
+}
 
 function updatePauseButton(state: TechnicalProbePauseState): void {
   gamePauseButton.disabled =
@@ -186,6 +328,7 @@ function resetResultButtons(): void {
     resultButtonsTimer = null;
   }
   resultRematchButton.disabled = true;
+  resultShareButton.disabled = true;
   resultCopyButton.disabled = true;
   resultHomeButton.disabled = true;
 }
@@ -196,6 +339,7 @@ function armResultButtons(): void {
     resultButtonsTimer = null;
     if (flow.screen !== 'RESULT') return;
     resultRematchButton.disabled = false;
+    resultShareButton.disabled = false;
     resultCopyButton.disabled = false;
     resultHomeButton.disabled = false;
     resultRematchButton.focus();
@@ -203,6 +347,7 @@ function armResultButtons(): void {
 }
 
 function render(): void {
+  renderPlayerNameState();
   homeScreen.hidden = settingsOpen || flow.screen !== 'HOME';
   tutorialScreen.hidden = settingsOpen || flow.screen !== 'TUTORIAL';
   selectionScreen.hidden = settingsOpen || flow.screen !== 'SELECT';
@@ -320,7 +465,7 @@ function render(): void {
     button.setAttribute('aria-pressed', String(selected));
     button.classList.toggle('is-selected', selected);
   }
-  selectionStartButton.disabled = !canStartSelection(selection);
+  selectionStartButton.disabled = !canStartSelection(selection) || playerName.length === 0;
 
   const result = flow.result;
   if (result) {
@@ -331,7 +476,10 @@ function render(): void {
           ? '相手の勝ち'
           : '引き分け';
     resultScore.textContent = `自分 ${result.playerScore}　｜　相手 ${result.cpuScore}`;
+    resultPlayer.textContent = `プレイヤー：${playerName || 'ななし'}`;
     resultDetail.textContent = `盤面：${boardLabel(result.selection.board)}　｜　CPU：${difficultyLabel(result.selection.difficulty)}　｜　${modeLabel(result.selection.mode)}`;
+    resultShareText.value = resultShareMessage(result, result.selection);
+    resultShareStatus.textContent = resultShareNote;
     resultRecordNote.textContent = [recordPersistenceWarning, recordCopyNote]
       .filter(Boolean)
       .join(' ');
@@ -339,13 +487,21 @@ function render(): void {
   } else {
     resultTitle.textContent = '試合結果';
     resultScore.textContent = '';
+    resultPlayer.textContent = '';
     resultDetail.textContent = '';
+    resultShareText.value = '';
+    resultShareStatus.textContent = '';
     resultRecordNote.textContent = '';
     resultRecordExport.textContent = '';
   }
 }
 
 function enterGame(seed = nextSeed): void {
+  if (!playerName) {
+    playerNameNote.textContent = 'プレイヤー名を入力してください。';
+    playerNameInput.focus();
+    return;
+  }
   nextSeed = seed + 1;
   flow = startGame(flow);
   render();
@@ -401,12 +557,33 @@ function handleGameResult(result: TechnicalProbeResult): void {
     ? ''
     : '試遊記録をこの端末へ保存できません。試合はそのまま遊べます。';
   recordCopyNote = '';
+  resultShareNote = '';
   const nextFlow = showResult(flow, completedResult);
   if (nextFlow === flow) return;
   flow = nextFlow;
   render();
   armResultButtons();
+  void submitAndLoadRanking(result);
 }
+
+playerNameInput.value = playerName;
+playerNameInput.addEventListener('input', () => {
+  playerName = playerNameInput.value.trim().slice(0, 20);
+  playerNameInput.value = playerName;
+  savePlayerName(playerName);
+  renderPlayerNameState();
+});
+
+homeShareButton.addEventListener('click', async () => {
+  const outcome = await shareOrCopy(homeShareMessage());
+  homeShareNote = outcome === 'shared'
+    ? '共有シートを開きました。'
+    : outcome === 'copied'
+      ? 'ゲームのリンクをコピーしました。'
+      : '共有できませんでした。リンクを選択して共有してください。';
+  renderPlayerNameState();
+  homeShareButton.focus();
+});
 
 playButton.addEventListener('click', enterSelection);
 
@@ -599,6 +776,19 @@ resultCopyButton.addEventListener('click', async () => {
   }
   render();
   resultCopyButton.focus();
+});
+
+resultShareButton.addEventListener('click', async () => {
+  const result = flow.result;
+  if (!result) return;
+  const outcome = await shareOrCopy(resultShareMessage(result, result.selection));
+  resultShareNote = outcome === 'shared'
+    ? '共有シートを開きました。'
+    : outcome === 'copied'
+      ? '結果文をコピーしました。'
+      : '自動共有できません。上の文章を選択してコピーしてください。';
+  render();
+  resultShareButton.focus();
 });
 
 resultHomeButton.addEventListener('click', () => {
