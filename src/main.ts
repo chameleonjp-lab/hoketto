@@ -29,6 +29,7 @@ import {
   toggleTechnicalProbePause,
   type TechnicalProbeResult,
   type TechnicalProbePauseState,
+  type TechnicalProbeReadiness,
 } from './game/TechnicalProbe';
 import { SoundController } from './audio/sound';
 import { loadAudioSettings, saveAudioSettings } from './app/audioSettings';
@@ -39,6 +40,11 @@ import {
   savePlayRecords,
 } from './app/playRecords';
 import { loadPlayerProgress, savePlayerProgress } from './app/progress';
+import {
+  detectDeviceMode,
+  deviceModeLabel,
+  getReadinessPresentation,
+} from './app/gamePresentation';
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -54,6 +60,13 @@ const gameScreen = requireElement<HTMLElement>('#game-screen');
 const gameBoardLabel = requireElement<HTMLElement>('#game-board-label');
 const gameRoot = requireElement<HTMLElement>('#game-root');
 const gameLiveStatus = requireElement<HTMLElement>('#game-live-status');
+const gameDeviceLabel = requireElement<HTMLElement>('#game-device-label');
+const gameMobileControls = requireElement<HTMLElement>('#game-mobile-controls');
+const gameDesktopControls = requireElement<HTMLElement>('#game-desktop-controls');
+const gameReadinessPanel = requireElement<HTMLElement>('#game-readiness');
+const gameReadinessLabel = requireElement<HTMLElement>('#game-readiness-label');
+const gameReadinessDetail = requireElement<HTMLElement>('#game-readiness-detail');
+const gameChargeProgress = requireElement<HTMLProgressElement>('#game-charge-progress');
 const gamePauseButton = requireElement<HTMLButtonElement>('#game-pause');
 const settingsScreen = requireElement<HTMLElement>('#settings-screen');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
@@ -202,6 +215,34 @@ function armResultButtons(): void {
   }, 300);
 }
 
+function detectCurrentDeviceMode() {
+  return detectDeviceMode({
+    coarsePointer: window.matchMedia?.('(pointer: coarse)').matches ?? false,
+    finePointer: window.matchMedia?.('(pointer: fine)').matches ?? false,
+    touchPoints: navigator.maxTouchPoints ?? 0,
+  });
+}
+
+function renderDeviceControls(): void {
+  const mode = detectCurrentDeviceMode();
+  gameDeviceLabel.textContent = deviceModeLabel(mode);
+  gameMobileControls.hidden = mode === 'desktop';
+  gameDesktopControls.hidden = mode === 'touch';
+}
+
+function updateGameReadiness(readiness: TechnicalProbeReadiness): void {
+  const presentation = getReadinessPresentation(
+    readiness.playerReadiness,
+    readiness.playerCooldownSeconds,
+    readiness.playerChargeRatio,
+  );
+  gameReadinessPanel.dataset.state = presentation.state;
+  gameReadinessLabel.textContent = presentation.title;
+  gameReadinessDetail.textContent = presentation.detail;
+  gameChargeProgress.value = presentation.progress;
+  gameChargeProgress.setAttribute('aria-valuetext', presentation.ariaValueText);
+}
+
 function render(): void {
   homeScreen.hidden = settingsOpen || flow.screen !== 'HOME';
   tutorialScreen.hidden = settingsOpen || flow.screen !== 'TUTORIAL';
@@ -210,6 +251,7 @@ function render(): void {
   resultScreen.hidden = settingsOpen || flow.screen !== 'RESULT';
   settingsScreen.hidden = !settingsOpen;
   if (flow.screen !== 'RESULT') resetResultButtons();
+  renderDeviceControls();
 
   settingsEffects.checked = soundController.areEffectsEnabled;
   settingsMusic.checked = soundController.isMusicEnabled;
@@ -365,9 +407,12 @@ function enterGame(seed = nextSeed): void {
       onShot: (owner) => {
         soundController.playShot(owner);
         if (owner === 'player') {
-          updateGameLiveStatus('自分が弾を発射しました。充電が戻るまで待ちます。');
+          updateGameLiveStatus(
+            '自分が弾を発射しました。上の充電ゲージが満ちるまで次の一発は撃てません。',
+          );
         }
       },
+      onReadinessChange: updateGameReadiness,
       onGoal: (team, scores) => {
         soundController.playGoal(team);
         const side = team === 'player' ? '自分' : '相手';
