@@ -6,47 +6,47 @@
 
 ## 自動検査
 
-| 確認                         | 状態 | 証拠                                                                                                                      |
-| ---------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------- |
-| 形式                         | 通過 | `prettier --check .`、CI #362、全ファイル一致                                                                             |
-| 静的検査                     | 通過 | `eslint .`、CI #362、終了コード0                                                                                          |
-| 型検査                       | 通過 | `tsc --noEmit`、CI #362、終了コード0                                                                                      |
-| 単体試験                     | 通過 | `vitest run`、CI #362、14ファイル・108件                                                                                  |
-| 本番出力                     | 通過 | `vite build`、CI #362、`dist`生成。gzip JavaScriptは376.79KB                                                              |
-| 10,000件の性質試験           | 通過 | `tests/property/collision.property.test.ts`、2026-08-15、10,000件                                                         |
-| 線分・長方形の衝突           | 通過 | 単体試験と性質試験で時刻・接触距離を確認                                                                                  |
-| 中断・復帰状態               | 通過 | `tests/unit/match.test.ts`、SUSPENDED、3秒再開、再開カウント中の再中断、INVALIDを確認                                     |
-| Pointer入力状態              | 通過 | `tests/unit/pointerInput.test.ts`、取消・充電中・2本目・捕捉喪失を確認                                                    |
-| キーボード入力状態           | 通過 | `tests/unit/keyboardInput.test.ts`、矢印移動、前方範囲、Enter／Spaceのリピート抑止、充電中、Escapeを確認                  |
-| 手動停止・再開状態           | 通過 | `straightBench` と `keyboardInput`、SUSPENDED、明示再開、3秒カウント、停止中の固定更新停止を確認                          |
-| システム中断ライフサイクル   | 通過 | `tests/unit/systemLifecycle.test.ts`、画面非表示、向き、表示領域、描画復元の条件・明示再開・再中断を確認                  |
-| 試合目的・状態通知           | 通過 | `tests/browser/flow.spec.ts`、CI #362、目的文、試合開始、手動停止の画面読み上げ情報を確認                                 |
-| 固定更新の遅延蓄積           | 通過 | `tests/unit/fixedStepClock.test.ts`、CI #362、1描画最大8更新、未処理30更新以上、2更新超30描画連続時の中断・蓄積破棄を確認 |
-| 延長ゴール幅                 | 通過 | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                                               |
-| ブラウザ導線スモーク         | 通過 | `tests/browser/flow.spec.ts`、CI #362。Chromium／WebKit／Firefoxの3ブラウザ・15件を確認                                   |
-| Pages公開物の一致            | 保留 | `.github/workflows/pages.yml`で`dist`を公開する。PRマージ後に公開URL、最新タイトル、JS／CSS、試合導線を確認予定           |
-| ゲーム性の因果表示           | 保留 | `tests/browser/flow.spec.ts`、勝ち方の3手順、得点条件、盤面の見分け方を確認する                                           |
-| 端末別操作案内               | 保留 | `tests/unit/gamePresentation.test.ts`とブラウザ検査、スマホ／PCの案内切替を確認する                                       |
-| 充電状態の文字・ゲージ表示   | 保留 | `tests/unit/gamePresentation.test.ts`と`tests/browser/flow.spec.ts`、撃てます／充電中／停止中と残り時間を確認する         |
-| 黒基調のゲーム盤面           | 保留 | `tests/browser/flow.spec.ts`、ゲーム盤面の背景色と明るい物体の表示を確認する                                              |
-| ストレート試合               | 通過 | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                                |
-| ツイン・ブロック物理・盤面   | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認                        |
-| リフレクト・レーン物理・盤面 | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の1回反射、パック反射を確認                     |
-| 高出力コア物理               | 通過 | `tests/unit/straightBench.test.ts`、17秒予告、15秒出現、予約中の弾通過、2点得点を確認                                     |
-| 無得点圧力                   | 通過 | `tests/unit/straightBench.test.ts`、11秒予告、12秒の12%拡大、20秒・10秒間隔の中央波、得点後リセットを確認                 |
-| CPU自動射撃                  | 通過 | 同ファイル、反応待ち、所有者付き弾、独立待ち時間、CPU命中を確認                                                           |
-| 状態表示・再戦               | 通過 | 同ファイル、両砲台の状態、結果からの新しい種、結果前の状態保持を確認                                                      |
-| ホーム・基本説明             | 通過 | `tests/unit/gameFlow.test.ts`、ホーム、3手順、待機確認、スキップ、戻るを純粋関数で確認                                    |
-| 試合選択                     | 通過 | 同ファイル、3盤面の開始条件と状態保持を確認                                                                               |
-| 試し撃ち時間                 | 通過 | `tests/unit/match.test.ts`・`straightBench.test.ts`、30秒化と再戦保持を確認                                               |
-| 結果画面・再戦               | 通過 | 同ファイル、結果表示、再戦・ホーム戻りの状態遷移を純粋関数で確認                                                          |
-| 固定更新                     | 通過 | 120Hzの純粋な更新で、弾・パック・時計・CPU判断を同じ入力から再現                                                          |
-| 説明の照準・発射・待機確認   | 通過 | `tests/unit/gameFlow.test.ts`、照準、押して離す・取消、充電輪待機を確認                                                   |
-| 音声設定・安全な無音復帰     | 通過 | `tests/unit/sound.test.ts`、初期消音、Web Audio非対応環境での設定変更・再生要求を確認                                     |
-| 音設定の端末内保存・破損復旧 | 通過 | `tests/unit/audioSettings.test.ts`、初期値、復元、破損、保存不可を確認                                                    |
-| 試遊記録の端末内保存・コピー | 通過 | `tests/unit/playRecords.test.ts`、復元、破損、上限、保存不可、本文生成を確認                                              |
-| 基本説明の完了状態保存       | 通過 | `tests/unit/progress.test.ts`、初期値、復元、破損、保存不可を確認                                                         |
-| ふつうCPUの難易度差          | 通過 | `tests/unit/straightBench.test.ts`、反応時間、再戦時の難易度保持、同一物理規則を確認                                      |
+| 確認                         | 状態 | 証拠                                                                                                                       |
+| ---------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------- |
+| 形式                         | 通過 | `prettier --check .`、CI #411、全ファイル一致                                                                              |
+| 静的検査                     | 通過 | `eslint .`、CI #411、終了コード0                                                                                           |
+| 型検査                       | 通過 | `tsc --noEmit`、CI #411、終了コード0                                                                                       |
+| 単体試験                     | 通過 | `vitest run`、CI #411、15ファイル・110件                                                                                   |
+| 本番出力                     | 通過 | `vite build`、CI #411、`dist`生成。gzip JavaScriptは377.59KB                                                               |
+| 10,000件の性質試験           | 通過 | `tests/property/collision.property.test.ts`、2026-08-15、10,000件                                                          |
+| 線分・長方形の衝突           | 通過 | 単体試験と性質試験で時刻・接触距離を確認                                                                                   |
+| 中断・復帰状態               | 通過 | `tests/unit/match.test.ts`、SUSPENDED、3秒再開、再開カウント中の再中断、INVALIDを確認                                      |
+| Pointer入力状態              | 通過 | `tests/unit/pointerInput.test.ts`、取消・充電中・2本目・捕捉喪失を確認                                                     |
+| キーボード入力状態           | 通過 | `tests/unit/keyboardInput.test.ts`、矢印移動、前方範囲、Enter／Spaceのリピート抑止、充電中、Escapeを確認                   |
+| 手動停止・再開状態           | 通過 | `straightBench` と `keyboardInput`、SUSPENDED、明示再開、3秒カウント、停止中の固定更新停止を確認                           |
+| システム中断ライフサイクル   | 通過 | `tests/unit/systemLifecycle.test.ts`、画面非表示、向き、表示領域、描画復元の条件・明示再開・再中断を確認                   |
+| 試合目的・状態通知           | 通過 | `tests/browser/flow.spec.ts`、CI #411、目的文、試合開始、手動停止の画面読み上げ情報を確認                                  |
+| 固定更新の遅延蓄積           | 通過 | `tests/unit/fixedStepClock.test.ts`、CI #411、1描画最大8更新、未処理30更新以上、2更新超30描画連続時の中断・蓄積破棄を確認  |
+| 延長ゴール幅                 | 通過 | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                                                |
+| ブラウザ導線スモーク         | 通過 | `tests/browser/flow.spec.ts`、CI #411。Chromium／WebKit／Firefoxの3ブラウザ・15件を確認                                    |
+| Pages公開物の一致            | 保留 | `.github/workflows/pages.yml`で`dist`を公開する。PRマージ後に公開URL、最新タイトル、JS／CSS、試合導線を確認予定            |
+| ゲーム性の因果表示           | 通過 | `tests/browser/flow.spec.ts`、CI #411、勝ち方の3手順、得点条件、盤面の見分け方を確認した                                   |
+| 端末別操作案内               | 通過 | `tests/unit/gamePresentation.test.ts`、CI #411、スマホ／PCの案内切替を確認した                                             |
+| 充電状態の文字・ゲージ表示   | 通過 | `tests/unit/gamePresentation.test.ts`・`tests/browser/flow.spec.ts`、CI #411、撃てます／充電中／停止中と残り時間を確認した |
+| 黒基調のゲーム盤面           | 通過 | `tests/browser/flow.spec.ts`、CI #411、ゲーム盤面の背景色と明るい物体の表示を確認した                                      |
+| ストレート試合               | 通過 | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                                 |
+| ツイン・ブロック物理・盤面   | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認                         |
+| リフレクト・レーン物理・盤面 | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の1回反射、パック反射を確認                      |
+| 高出力コア物理               | 通過 | `tests/unit/straightBench.test.ts`、17秒予告、15秒出現、予約中の弾通過、2点得点を確認                                      |
+| 無得点圧力                   | 通過 | `tests/unit/straightBench.test.ts`、11秒予告、12秒の12%拡大、20秒・10秒間隔の中央波、得点後リセットを確認                  |
+| CPU自動射撃                  | 通過 | 同ファイル、反応待ち、所有者付き弾、独立待ち時間、CPU命中を確認                                                            |
+| 状態表示・再戦               | 通過 | 同ファイル、両砲台の状態、結果からの新しい種、結果前の状態保持を確認                                                       |
+| ホーム・基本説明             | 通過 | `tests/unit/gameFlow.test.ts`、ホーム、3手順、待機確認、スキップ、戻るを純粋関数で確認                                     |
+| 試合選択                     | 通過 | 同ファイル、3盤面の開始条件と状態保持を確認                                                                                |
+| 試し撃ち時間                 | 通過 | `tests/unit/match.test.ts`・`straightBench.test.ts`、30秒化と再戦保持を確認                                                |
+| 結果画面・再戦               | 通過 | 同ファイル、結果表示、再戦・ホーム戻りの状態遷移を純粋関数で確認                                                           |
+| 固定更新                     | 通過 | 120Hzの純粋な更新で、弾・パック・時計・CPU判断を同じ入力から再現                                                           |
+| 説明の照準・発射・待機確認   | 通過 | `tests/unit/gameFlow.test.ts`、照準、押して離す・取消、充電輪待機を確認                                                    |
+| 音声設定・安全な無音復帰     | 通過 | `tests/unit/sound.test.ts`、初期消音、Web Audio非対応環境での設定変更・再生要求を確認                                      |
+| 音設定の端末内保存・破損復旧 | 通過 | `tests/unit/audioSettings.test.ts`、初期値、復元、破損、保存不可を確認                                                     |
+| 試遊記録の端末内保存・コピー | 通過 | `tests/unit/playRecords.test.ts`、復元、破損、上限、保存不可、本文生成を確認                                               |
+| 基本説明の完了状態保存       | 通過 | `tests/unit/progress.test.ts`、初期値、復元、破損、保存不可を確認                                                          |
+| ふつうCPUの難易度差          | 通過 | `tests/unit/straightBench.test.ts`、反応時間、再戦時の難易度保持、同一物理規則を確認                                       |
 
 ## 手動・独立確認
 
