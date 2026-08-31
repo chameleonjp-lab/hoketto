@@ -2,14 +2,8 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <meta
-      name="description"
-      content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』" />
     <title>ホケット | P4 ゲーム性・操作改善</title>
   </head>
   <body>
@@ -17,65 +11,35 @@
       <section class="shell">
         <p class="eyebrow">P4 ゲーム性・操作改善</p>
         <h1 id="page-title">ホケット</h1>
-        <p class="lead">
-          弾で白いパックを動かし、相手ゴールへ入れる縦画面のブラウザゲームです。
-        </p>
+        <p class="lead">弾で白いパックを動かし、相手ゴールへ入れる縦画面のブラウザゲームです。</p>
 
-        <section
-          id="home-screen"
-          class="flow-panel"
-          aria-labelledby="home-title"
-        >
+        <section id="home-screen" class="flow-panel" aria-labelledby="home-title">
           <p class="section-kicker">遊び方は3ステップ</p>
           <h2 id="home-title">弾でパックをゴールへ</h2>
           <p class="flow-copy">
             下から自分の弾を撃って白いパックを動かし、上の赤い「相手ゴール」に入れます。
           </p>
           <ol class="rule-steps" aria-label="ホケットの遊び方">
-            <li>
-              <strong>1</strong><span>狙う</span><small>パックへ向ける</small>
-            </li>
-            <li>
-              <strong>2</strong><span>撃つ</span><small>押して離す</small>
-            </li>
-            <li>
-              <strong>3</strong><span>入れる</span><small>上のゴールへ</small>
-            </li>
+            <li><strong>1</strong><span>狙う</span><small>パックへ向ける</small></li>
+            <li><strong>2</strong><span>撃つ</span><small>押して離す</small></li>
+            <li><strong>3</strong><span>入れる</span><small>上のゴールへ</small></li>
           </ol>
           <div class="status-panel" aria-live="polite">
             <strong>勝ち方</strong>
-            <span
-              >90秒後（試し撃ちは30秒後）に、相手ゴールへ入れた点が多い方が勝ち。</span
-            >
+            <span>90秒後（試し撃ちは30秒後）に、相手ゴールへ入れた点が多い方が勝ち。</span>
           </div>
           <p class="settings-note">
             1回撃つと充電が始まり、ゲージが満ちるまで次の一発は撃てません。
           </p>
-          <p
-            id="home-progress-note"
-            class="settings-note"
-            role="status"
-            aria-live="polite"
-          ></p>
+          <p id="home-progress-note" class="settings-note" role="status" aria-live="polite"></p>
           <div class="flow-actions">
-            <button id="play-button" class="primary-action" type="button">
-              遊ぶ
-            </button>
-            <button id="tutorial-button" class="secondary-action" type="button">
-              説明を見る
-            </button>
-            <button id="settings-button" class="secondary-action" type="button">
-              設定
-            </button>
+            <button id="play-button" class="primary-action" type="button">遊ぶ</button>
+            <button id="tutorial-button" class="secondary-action" type="button">説明を見る</button>
+            <button id="settings-button" class="secondary-action" type="button">設定</button>
           </div>
         </section>
 
-        <section
-          id="settings-screen"
-          class="flow-panel"
-          aria-labelledby="settings-title"
-          hidden
-        >
+        <section id="settings-screen" class="flow-panel" aria-labelledby="settings-title" hidden>
           <p class="section-kicker">設定</p>
           <h2 id="settings-title">音と表示</h2>
           <p class="flow-copy">
@@ -97,16 +61,9 @@
               </span>
             </label>
           </div>
-          <p
-            id="settings-audio-note"
-            class="settings-note"
-            role="status"
-            aria-live="polite"
-          ></p>
+          <p id="settings-audio-note" class="settings-note" role="status" aria-live="polite"></p>
           <div class="flow-actions">
-            <button id="settings-back" class="primary-action" type="button">
-              戻る
-            </button>
+            <button id="settings-back" class="primary-action" type="button">戻る</button>
           </div>
         </section>
 
@@ -145,35 +102,21 @@
           <p id="tutorial-body" class="flow-copy">
             まず白いパックを1回タップして、照準を試します。
           </p>
-          <p
-            id="tutorial-feedback"
-            class="tutorial-feedback"
-            role="status"
-            aria-live="polite"
-          >
+          <p id="tutorial-feedback" class="tutorial-feedback" role="status" aria-live="polite">
             白いパックを1回タップしてください。
           </p>
           <div class="flow-actions">
-            <button id="tutorial-next" class="primary-action" type="button">
-              次へ
-            </button>
+            <button id="tutorial-next" class="primary-action" type="button">次へ</button>
             <button id="tutorial-skip" class="secondary-action" type="button">
               説明を飛ばして遊ぶ
             </button>
           </div>
         </section>
 
-        <section
-          id="selection-screen"
-          class="flow-panel"
-          aria-labelledby="selection-title"
-          hidden
-        >
+        <section id="selection-screen" class="flow-panel" aria-labelledby="selection-title" hidden>
           <p class="section-kicker">試合条件</p>
           <h2 id="selection-title">盤面・CPU・遊び方を選ぶ</h2>
-          <p class="flow-copy">
-            今すぐ遊べる条件には「開始できます」と表示しています。
-          </p>
+          <p class="flow-copy">今すぐ遊べる条件には「開始できます」と表示しています。</p>
 
           <fieldset class="selection-group">
             <legend>盤面</legend>
@@ -214,11 +157,7 @@
                 <span>現在の試作。CPUの反応を確認できます。</span>
                 <small>開始できます</small>
               </button>
-              <button
-                id="difficulty-normal"
-                class="selection-card"
-                type="button"
-              >
+              <button id="difficulty-normal" class="selection-card" type="button">
                 <strong>ふつう</strong>
                 <span>少し早く反応し、少し先を読んで撃つCPU。</span>
                 <small>開始できます</small>
@@ -229,12 +168,7 @@
           <fieldset class="selection-group">
             <legend>遊び方</legend>
             <div class="selection-grid selection-grid-compact">
-              <button
-                id="mode-trial"
-                class="selection-card"
-                type="button"
-                aria-pressed="false"
-              >
+              <button id="mode-trial" class="selection-card" type="button" aria-pressed="false">
                 <strong>30秒の試し撃ち</strong>
                 <span>短い時間で、狙いと発射を試します。</span>
                 <small>開始できます</small>
@@ -256,32 +190,19 @@
             <button id="selection-start" class="primary-action" type="button">
               この条件で始める
             </button>
-            <button id="selection-back" class="secondary-action" type="button">
-              ホームへ戻る
-            </button>
+            <button id="selection-back" class="secondary-action" type="button">ホームへ戻る</button>
           </div>
         </section>
 
-        <section
-          id="game-screen"
-          class="game-panel"
-          aria-labelledby="game-title"
-          hidden
-        >
+        <section id="game-screen" class="game-panel" aria-labelledby="game-title" hidden>
           <div class="game-header">
             <div>
-              <p id="game-board-label" class="section-kicker">
-                ストレート・ベンチ
-              </p>
+              <p id="game-board-label" class="section-kicker">ストレート・ベンチ</p>
               <h2 id="game-title">試合</h2>
             </div>
             <div class="game-header-actions">
-              <button id="game-pause" class="secondary-action" type="button">
-                一時停止
-              </button>
-              <button id="home-button" class="home-button" type="button">
-                ホームへ
-              </button>
+              <button id="game-pause" class="secondary-action" type="button">一時停止</button>
+              <button id="home-button" class="home-button" type="button">ホームへ</button>
             </div>
           </div>
           <div class="game-guide" aria-label="ゲームの遊び方">
@@ -291,9 +212,7 @@
               <ol class="game-steps">
                 <li><strong>1</strong><span>自分の弾を下から撃つ</span></li>
                 <li><strong>2</strong><span>白いパックを動かす</span></li>
-                <li>
-                  <strong>3</strong><span>上のゴールに入れて得点する</span>
-                </li>
+                <li><strong>3</strong><span>上のゴールに入れて得点する</span></li>
               </ol>
               <p id="game-instructions" class="game-guide-note">
                 得点が多い方が勝ち。1回撃った後は、下の充電ゲージが満ちるまで待ちます。
@@ -308,9 +227,7 @@
               <div class="readiness-heading">
                 <span class="readiness-mark" aria-hidden="true"></span>
                 <div>
-                  <p id="game-readiness-title" class="readiness-kicker">
-                    自分の発射状態
-                  </p>
+                  <p id="game-readiness-title" class="readiness-kicker">自分の発射状態</p>
                   <strong id="game-readiness-label">停止中</strong>
                 </div>
               </div>
@@ -327,15 +244,9 @@
             </section>
             <section class="game-controls" aria-labelledby="game-device-label">
               <p id="game-device-label" class="device-heading">操作方法</p>
-              <section
-                id="game-mobile-controls"
-                class="device-controls"
-                aria-label="スマホ操作"
-              >
+              <section id="game-mobile-controls" class="device-controls" aria-label="スマホ操作">
                 <strong>スマホ</strong>
-                <span
-                  >盤面を指で押したまま方向を決め、指を離して発射します。</span
-                >
+                <span>盤面を指で押したまま方向を決め、指を離して発射します。</span>
               </section>
               <section
                 id="game-desktop-controls"
@@ -344,9 +255,7 @@
                 hidden
               >
                 <strong>PC</strong>
-                <span
-                  >マウス：盤面を押したまま方向を決め、離して発射します。</span
-                >
+                <span>マウス：盤面を押したまま方向を決め、離して発射します。</span>
                 <span
                   >キーボード：盤面をクリックしてから、矢印で狙い、Enter／Spaceで発射します。</span
                 >
@@ -356,9 +265,7 @@
               <span><i class="legend-swatch legend-player">○</i>自分の弾</span>
               <span><i class="legend-swatch legend-cpu">◇</i>相手の弾</span>
               <span><i class="legend-swatch legend-puck">●</i>白いパック</span>
-              <span
-                ><i class="legend-line legend-goal"></i>赤い線：相手ゴール</span
-              >
+              <span><i class="legend-line legend-goal"></i>赤い線：相手ゴール</span>
             </div>
           </div>
           <p
@@ -368,11 +275,7 @@
             aria-live="polite"
             aria-atomic="true"
           ></p>
-          <div
-            id="game-root"
-            class="game-root"
-            aria-label="ホケットの技術試作盤面"
-          ></div>
+          <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
           <p class="caption">
             黒い盤面では、白いパックと色付きの弾・ゴールを見分けます。スマホは指、PCはマウスまたはキーボードで操作します。画面非表示や向き変更などで停止した場合は、条件が戻った後に「再開」を押します。
           </p>
@@ -397,22 +300,12 @@
           ></p>
           <details class="result-export-details">
             <summary>試遊記録を見る</summary>
-            <pre
-              id="result-record-export"
-              class="result-export"
-              tabindex="0"
-            ></pre>
+            <pre id="result-record-export" class="result-export" tabindex="0"></pre>
           </details>
           <div class="flow-actions">
-            <button id="result-rematch" class="primary-action" type="button">
-              もう一度
-            </button>
-            <button id="result-copy" class="secondary-action" type="button">
-              記録をコピー
-            </button>
-            <button id="result-home" class="secondary-action" type="button">
-              ホームへ
-            </button>
+            <button id="result-rematch" class="primary-action" type="button">もう一度</button>
+            <button id="result-copy" class="secondary-action" type="button">記録をコピー</button>
+            <button id="result-home" class="secondary-action" type="button">ホームへ</button>
           </div>
         </section>
       </section>
