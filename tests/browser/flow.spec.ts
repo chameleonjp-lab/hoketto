@@ -3,6 +3,10 @@ import type { Page } from '@playwright/test';
 
 async function startTrial(page: Page): Promise<void> {
   await page.goto('/');
+  const playerName = page.locator('#player-name');
+  await expect(page.locator('#play-button')).toBeDisabled();
+  await playerName.fill('テストプレイヤー');
+  await expect(page.locator('#play-button')).toBeEnabled();
   await page.locator('#play-button').click();
   await expect(page.locator('#selection-screen')).toBeVisible();
   await page.locator('#mode-trial').click();

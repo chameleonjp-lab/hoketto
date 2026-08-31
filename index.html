@@ -32,11 +32,39 @@
             1回撃つと充電が始まり、ゲージが満ちるまで次の一発は撃てません。
           </p>
           <p id="home-progress-note" class="settings-note" role="status" aria-live="polite"></p>
+          <div class="player-name-field">
+            <label for="player-name">プレイヤー名（ランキング表示）</label>
+            <input
+              id="player-name"
+              name="player-name"
+              type="text"
+              maxlength="20"
+              autocomplete="nickname"
+              required
+              placeholder="20文字以内で入力"
+            />
+            <p id="player-name-note" class="settings-note" role="status" aria-live="polite">
+              名前を入力するとゲームを開始できます。
+            </p>
+          </div>
           <div class="flow-actions">
             <button id="play-button" class="primary-action" type="button">遊ぶ</button>
             <button id="tutorial-button" class="secondary-action" type="button">説明を見る</button>
             <button id="settings-button" class="secondary-action" type="button">設定</button>
           </div>
+          <div class="platform-actions">
+            <button id="home-share" class="secondary-action" type="button">
+              このゲームをシェア
+            </button>
+            <a
+              class="platform-link"
+              href="https://chameleonjp-lab.github.io/chameleonjp_lab/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >カメレオンJPの実験場</a
+            >
+          </div>
+          <p id="home-share-status" class="settings-note" role="status" aria-live="polite"></p>
         </section>
 
         <section id="settings-screen" class="flow-panel" aria-labelledby="settings-title" hidden>
@@ -291,7 +319,25 @@
           <p class="section-kicker">試合結果</p>
           <h2 id="result-title">試合結果</h2>
           <p id="result-score" class="result-score">自分 0　｜　相手 0</p>
+          <p id="result-player" class="result-player"></p>
           <p id="result-detail" class="flow-copy">ストレート・ベンチ</p>
+          <label class="result-share-label" for="result-share-text">結果をシェア</label>
+          <textarea id="result-share-text" class="result-share-text" rows="4" readonly></textarea>
+          <p id="result-share-status" class="settings-note" role="status" aria-live="polite"></p>
+          <section class="ranking-panel" aria-labelledby="ranking-title">
+            <h3 id="ranking-title">上位10名</h3>
+            <ol id="ranking-list" class="ranking-list"></ol>
+            <p id="ranking-status" class="settings-note" role="status" aria-live="polite">
+              結果を送信するとランキングを表示します。
+            </p>
+          </section>
+          <a
+            class="platform-link result-platform-link"
+            href="https://chameleonjp-lab.github.io/chameleonjp_lab/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >カメレオンJPの実験場へ</a
+          >
           <p
             id="result-record-note"
             class="settings-note result-record-note"
@@ -304,6 +350,9 @@
           </details>
           <div class="flow-actions">
             <button id="result-rematch" class="primary-action" type="button">もう一度</button>
+            <button id="result-share" class="secondary-action" type="button">
+              結果をシェア／コピー
+            </button>
             <button id="result-copy" class="secondary-action" type="button">記録をコピー</button>
             <button id="result-home" class="secondary-action" type="button">ホームへ</button>
           </div>
