@@ -25,10 +25,10 @@
 | 延長ゴール幅                 | 通過 | `tests/unit/straightBench.test.ts`、延長中の20%拡大と拡大範囲での得点を確認                                               |
 | ブラウザ導線スモーク         | 通過 | `tests/browser/flow.spec.ts`、CI #362。Chromium／WebKit／Firefoxの3ブラウザ・15件を確認                                   |
 | Pages公開物の一致            | 保留 | `.github/workflows/pages.yml`で`dist`を公開する。PRマージ後に公開URL、最新タイトル、JS／CSS、試合導線を確認予定           |
-| ゲーム性の因果表示             | 保留 | `tests/browser/flow.spec.ts`、勝ち方の3手順、得点条件、盤面の見分け方を確認する                                               |
-| 端末別操作案内                 | 保留 | `tests/unit/gamePresentation.test.ts`とブラウザ検査、スマホ／PCの案内切替を確認する                                             |
-| 充電状態の文字・ゲージ表示     | 保留 | `tests/unit/gamePresentation.test.ts`と`tests/browser/flow.spec.ts`、撃てます／充電中／停止中と残り時間を確認する |
-| 黒基調のゲーム盤面             | 保留 | `tests/browser/flow.spec.ts`、ゲーム盤面の背景色と明るい物体の表示を確認する                                                   |
+| ゲーム性の因果表示           | 保留 | `tests/browser/flow.spec.ts`、勝ち方の3手順、得点条件、盤面の見分け方を確認する                                           |
+| 端末別操作案内               | 保留 | `tests/unit/gamePresentation.test.ts`とブラウザ検査、スマホ／PCの案内切替を確認する                                       |
+| 充電状態の文字・ゲージ表示   | 保留 | `tests/unit/gamePresentation.test.ts`と`tests/browser/flow.spec.ts`、撃てます／充電中／停止中と残り時間を確認する         |
+| 黒基調のゲーム盤面           | 保留 | `tests/browser/flow.spec.ts`、ゲーム盤面の背景色と明るい物体の表示を確認する                                              |
 | ストレート試合               | 通過 | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                                |
 | ツイン・ブロック物理・盤面   | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認                        |
 | リフレクト・レーン物理・盤面 | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の1回反射、パック反射を確認                     |
