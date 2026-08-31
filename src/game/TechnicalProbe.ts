@@ -57,6 +57,12 @@ export interface TechnicalProbePauseState {
   readonly canResume: boolean;
 }
 
+export interface TechnicalProbeReadiness {
+  readonly playerReadiness: TurretReadiness;
+  readonly playerChargeRatio: number;
+  readonly playerCooldownSeconds: number;
+}
+
 export interface TechnicalProbeOptions {
   readonly seed?: number;
   readonly durationSeconds?: number;
@@ -68,6 +74,7 @@ export interface TechnicalProbeOptions {
     team: 'player' | 'cpu',
     scores: { readonly playerScore: number; readonly cpuScore: number },
   ) => void;
+  readonly onReadinessChange?: (readiness: TechnicalProbeReadiness) => void;
   readonly onPauseChange?: (state: TechnicalProbePauseState) => void;
 }
 
@@ -75,13 +82,15 @@ class TechnicalProbeScene extends Phaser.Scene {
   private readonly playerColor = 0x00b8a9;
   private readonly cpuColor = 0xe24d35;
   private readonly puckColor = 0xf8fcff;
-  private readonly boardColor = 0x07151d;
+  private readonly boardColor = 0x000000;
   private readonly lineColor = 0xc8d1e5;
   private graphics!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
   private coreText!: Phaser.GameObjects.Text;
   private noticeText!: Phaser.GameObjects.Text;
+  private cpuGoalText!: Phaser.GameObjects.Text;
+  private playerGoalText!: Phaser.GameObjects.Text;
   private canvas!: HTMLCanvasElement;
   private readonly inputController = new PointerInputController({
     board: {
@@ -114,8 +123,12 @@ class TechnicalProbeScene extends Phaser.Scene {
   private readonly systemLifecycle = new SystemLifecycleController();
   private resizeObserver: ResizeObserver | null = null;
   private resizeFrame: number | null = null;
-  private lastCanvasSize: { readonly width: number; readonly height: number } | null = null;
+  private lastCanvasSize: {
+    readonly width: number;
+    readonly height: number;
+  } | null = null;
   private renderRecoveryTimer: number | null = null;
+  private lastPlayerReadinessKey = '';
 
   public constructor(options: TechnicalProbeOptions = {}) {
     super('technical-probe');
@@ -150,9 +163,10 @@ class TechnicalProbeScene extends Phaser.Scene {
       fontStyle: 'bold',
     });
     this.statusText = this.add.text(0, 0, '', {
-      color: '#c8d1e5',
+      color: '#e0e7f3',
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '11px',
+      fontSize: '13px',
+      fontStyle: 'bold',
     });
     this.coreText = this.add.text(0, 0, '', {
       color: '#07151d',
@@ -171,6 +185,20 @@ class TechnicalProbeScene extends Phaser.Scene {
       wordWrap: { width: WIDTH - 48 },
     });
     this.noticeText.setOrigin(0.5);
+    this.cpuGoalText = this.add.text(WIDTH / 2, BOARD_MARGIN + 16, '相手ゴール', {
+      color: '#ffb4aa',
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+    });
+    this.cpuGoalText.setOrigin(0.5);
+    this.playerGoalText = this.add.text(WIDTH / 2, HEIGHT - BOARD_MARGIN - 16, '自分ゴール', {
+      color: '#b9fff4',
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+    });
+    this.playerGoalText.setOrigin(0.5);
     this.input.on('pointerdown', this.handlePointerDown, this);
     this.input.on('pointermove', this.handlePointerMove, this);
     this.input.on('pointerup', this.handlePointerUp, this);
@@ -815,6 +843,30 @@ class TechnicalProbeScene extends Phaser.Scene {
     const notice = notices.join('｜');
     this.noticeText.setText(notice);
     this.noticeText.setVisible(notice.length > 0);
+    this.emitPlayerReadiness();
+  }
+
+  private emitPlayerReadiness(): void {
+    const readiness = getPlayerTurretReadiness(this.state);
+    const cooldownTicks = this.state.cooldownTicks;
+    const progressBucket =
+      readiness === 'charging'
+        ? Math.ceil(cooldownTicks / Math.max(1, Math.round(FIXED_HZ / 10)))
+        : 0;
+    const key = `${readiness}:${progressBucket}:${this.state.match.phase}`;
+    if (key === this.lastPlayerReadinessKey) return;
+    this.lastPlayerReadinessKey = key;
+    const chargeRatio =
+      readiness === 'ready'
+        ? 1
+        : readiness === 'charging'
+          ? Math.max(0, 1 - cooldownTicks / SHOT_COOLDOWN_TICKS)
+          : 0;
+    this.options.onReadinessChange?.({
+      playerReadiness: readiness,
+      playerChargeRatio: chargeRatio,
+      playerCooldownSeconds: cooldownTicks / FIXED_HZ,
+    });
   }
 
   private drawGoal(graphics: Phaser.GameObjects.Graphics, side: 'top' | 'bottom'): void {
@@ -900,6 +952,14 @@ class TechnicalProbeScene extends Phaser.Scene {
       : getCpuTurretReadiness(this.state);
     const cooldownTicks = player ? this.state.cooldownTicks : this.state.cpuCooldownTicks;
     const thinking = readiness === 'thinking';
+    const readinessColor =
+      readiness === 'ready'
+        ? color
+        : readiness === 'charging'
+          ? 0xffd34e
+          : readiness === 'thinking'
+            ? 0xc8d1e5
+            : 0x64748b;
     const chargeRatio =
       readiness === 'stopped'
         ? 0.25
@@ -908,7 +968,7 @@ class TechnicalProbeScene extends Phaser.Scene {
           : cooldownTicks === 0
             ? 1
             : 1 - cooldownTicks / SHOT_COOLDOWN_TICKS;
-    graphics.lineStyle(3, 0xf4fafc, 0.75);
+    graphics.lineStyle(4, readinessColor, 1);
     graphics.strokeCircle(position.x, position.y, 26 * Math.max(0.25, chargeRatio));
   }
 }
@@ -929,7 +989,7 @@ export function mountTechnicalProbe(
     parent,
     width: WIDTH,
     height: HEIGHT,
-    backgroundColor: '#07151d',
+    backgroundColor: '#000000',
     scene: new TechnicalProbeScene(options),
     scale: {
       mode: Phaser.Scale.FIT,

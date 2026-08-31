@@ -4,25 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="弾でパックを動かす、縦画面の卓上電磁スポーツ『ホケット』" />
-    <title>ホケット | P4 中断復帰試作</title>
+    <title>ホケット | P4 ゲーム性・操作改善</title>
   </head>
   <body>
     <main id="app" aria-labelledby="page-title">
       <section class="shell">
-        <p class="eyebrow">P4 中断復帰試作</p>
+        <p class="eyebrow">P4 ゲーム性・操作改善</p>
         <h1 id="page-title">ホケット</h1>
-        <p class="lead">弾でパックを動かし、相手ゴールを狙う縦画面のブラウザゲームです。</p>
+        <p class="lead">弾で白いパックを動かし、相手ゴールへ入れる縦画面のブラウザゲームです。</p>
 
         <section id="home-screen" class="flow-panel" aria-labelledby="home-title">
-          <p class="section-kicker">まずは1分で遊べます</p>
-          <h2 id="home-title">弾でパックを動かす</h2>
-          <p class="flow-copy">下から弾を撃ち、白いパックを上の相手ゴールへ入れます。</p>
+          <p class="section-kicker">遊び方は3ステップ</p>
+          <h2 id="home-title">弾でパックをゴールへ</h2>
+          <p class="flow-copy">
+            下から自分の弾を撃って白いパックを動かし、上の赤い「相手ゴール」に入れます。
+          </p>
+          <ol class="rule-steps" aria-label="ホケットの遊び方">
+            <li><strong>1</strong><span>狙う</span><small>パックへ向ける</small></li>
+            <li><strong>2</strong><span>撃つ</span><small>押して離す</small></li>
+            <li><strong>3</strong><span>入れる</span><small>上のゴールへ</small></li>
+          </ol>
           <div class="status-panel" aria-live="polite">
-            <strong>いま遊べる範囲</strong>
-            <span
-              >3盤面・弾・パック・ゴール・得点・30秒／90秒の固定更新・両砲台の状態表示・システム中断</span
-            >
+            <strong>勝ち方</strong>
+            <span>90秒後（試し撃ちは30秒後）に、相手ゴールへ入れた点が多い方が勝ち。</span>
           </div>
+          <p class="settings-note">
+            1回撃つと充電が始まり、ゲージが満ちるまで次の一発は撃てません。
+          </p>
           <p id="home-progress-note" class="settings-note" role="status" aria-live="polite"></p>
           <div class="flow-actions">
             <button id="play-button" class="primary-action" type="button">遊ぶ</button>
@@ -197,11 +205,68 @@
               <button id="home-button" class="home-button" type="button">ホームへ</button>
             </div>
           </div>
-          <div class="status-panel" aria-label="ゲームの目的と操作">
-            <strong>目的と操作</strong>
-            <span id="game-instructions"
-              >下から弾を撃ち、白いパックを上の相手ゴールへ入れると得点です。盤面を触って狙い、指を離して発射します。弾を撃った後は「充電中」が終わるまで待ちます。</span
+          <div class="game-guide" aria-label="ゲームの遊び方">
+            <section class="game-goal-card" aria-labelledby="game-goal-title">
+              <p class="section-kicker">勝ち方</p>
+              <h3 id="game-goal-title">白いパックを上の赤い相手ゴールへ</h3>
+              <ol class="game-steps">
+                <li><strong>1</strong><span>自分の弾を下から撃つ</span></li>
+                <li><strong>2</strong><span>白いパックを動かす</span></li>
+                <li><strong>3</strong><span>上のゴールに入れて得点する</span></li>
+              </ol>
+              <p id="game-instructions" class="game-guide-note">
+                得点が多い方が勝ち。1回撃った後は、下の充電ゲージが満ちるまで待ちます。
+              </p>
+            </section>
+            <section
+              id="game-readiness"
+              class="game-readiness"
+              data-state="stopped"
+              aria-labelledby="game-readiness-title"
             >
+              <div class="readiness-heading">
+                <span class="readiness-mark" aria-hidden="true"></span>
+                <div>
+                  <p id="game-readiness-title" class="readiness-kicker">自分の発射状態</p>
+                  <strong id="game-readiness-label">停止中</strong>
+                </div>
+              </div>
+              <progress
+                id="game-charge-progress"
+                max="100"
+                value="0"
+                aria-label="自分の充電ゲージ"
+                aria-valuetext="充電停止中。"
+              ></progress>
+              <p id="game-readiness-detail" class="readiness-detail">
+                試合が始まると発射できます。
+              </p>
+            </section>
+            <section class="game-controls" aria-labelledby="game-device-label">
+              <p id="game-device-label" class="device-heading">操作方法</p>
+              <section id="game-mobile-controls" class="device-controls" aria-label="スマホ操作">
+                <strong>スマホ</strong>
+                <span>盤面を指で押したまま方向を決め、指を離して発射します。</span>
+              </section>
+              <section
+                id="game-desktop-controls"
+                class="device-controls"
+                aria-label="PC操作"
+                hidden
+              >
+                <strong>PC</strong>
+                <span>マウス：盤面を押したまま方向を決め、離して発射します。</span>
+                <span
+                  >キーボード：盤面をクリックしてから、矢印で狙い、Enter／Spaceで発射します。</span
+                >
+              </section>
+            </section>
+            <div class="game-legend" aria-label="盤面の見分け方">
+              <span><i class="legend-swatch legend-player">○</i>自分の弾</span>
+              <span><i class="legend-swatch legend-cpu">◇</i>相手の弾</span>
+              <span><i class="legend-swatch legend-puck">●</i>白いパック</span>
+              <span><i class="legend-line legend-goal"></i>赤い線：相手ゴール</span>
+            </div>
           </div>
           <p
             id="game-live-status"
@@ -212,7 +277,7 @@
           ></p>
           <div id="game-root" class="game-root" aria-label="ホケットの技術試作盤面"></div>
           <p class="caption">
-            ストレート・ベンチ、ツイン・ブロック、リフレクト・レーンの試作です。CPUも同じ弾速・命中規則で自動射撃し、れんしゅうとふつうで反応時間と先読みを変えます。画面上の「撃てる」「観測中」「充電中」「停止」で両砲台の状態を確認できます。画面非表示、横向き、表示領域変更、描画復元中は時計と物理を止め、縦向き・表示・描画が戻った後の「再開」操作で3秒カウントを始めます。音は設定画面で個別に有効化できますが、初期状態は無音です。
+            黒い盤面では、白いパックと色付きの弾・ゴールを見分けます。スマホは指、PCはマウスまたはキーボードで操作します。画面非表示や向き変更などで停止した場合は、条件が戻った後に「再開」を押します。
           </p>
         </section>
 

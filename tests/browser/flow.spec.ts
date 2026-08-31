@@ -15,7 +15,17 @@ test.describe('ホケットのブラウザ導線', () => {
   test('試合の目的と状態通知を確認できる', async ({ page }) => {
     await startTrial(page);
 
-    await expect(page.locator('#game-instructions')).toContainText('下から弾を撃ち');
+    await expect(page.locator('#game-instructions')).toContainText('得点が多い方が勝ち');
+    await expect(page.locator('#game-goal-title')).toContainText('白いパック');
+    await expect(page.locator('#game-readiness-label')).toHaveText('撃てます');
+    await expect(page.locator('#game-readiness-detail')).toContainText('ゲージが満ちています');
+    await expect(page.locator('#game-charge-progress')).toHaveAttribute(
+      'aria-valuetext',
+      '充電完了。今すぐ発射できます。',
+    );
+    await expect(page.locator('#game-desktop-controls')).toBeVisible();
+    await expect(page.locator('#game-mobile-controls')).toBeHidden();
+    await expect(page.locator('#game-root')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
     await expect(page.locator('#game-live-status')).toHaveText(/試合開始/);
 
     await page.locator('#game-pause').click();
