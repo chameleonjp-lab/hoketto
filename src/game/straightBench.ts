@@ -15,15 +15,10 @@ import {
   type MatchState,
   type SuspensionReason,
 } from '../domain/match';
-import type { Aabb, Circle, Point, Segment, Team } from '../domain/types';
-import {
-  clampVectorMagnitude,
-  reflectVector,
-  sweptCircleAgainstAabb,
-  sweptCircleAgainstCircle,
-  sweptCircleAgainstSegment,
-  type SweepHit,
-} from '../physics/geometry';
+import type { Circle, Point, Team } from '../domain/types';
+import { createBoardGeometry, type BoardGeometry } from '../physics/boardGeometry';
+import { clampVectorMagnitude } from '../physics/geometry';
+import { stepPhysics } from '../physics/stepPhysics';
 
 export const STRAIGHT_BENCH_WIDTH = STRAIGHT_BENCH.width;
 export const STRAIGHT_BENCH_HEIGHT = STRAIGHT_BENCH.height;
@@ -60,8 +55,6 @@ export const CPU_AIM_LEAD_TICKS = NORMAL_CPU_AIM_LEAD_TICKS;
 
 const PLAYER_TURRET: Point = { x: STRAIGHT_BENCH_WIDTH / 2, y: 580 };
 const CPU_TURRET: Point = { x: STRAIGHT_BENCH_WIDTH / 2, y: 60 };
-const GOAL_OPENING_PADDING = PUCK_RADIUS;
-const GOAL_THRESHOLD_EPSILON = 1e-9;
 const CORE_RADIUS = PUCK_RADIUS;
 
 export type CorePhase = 'INACTIVE' | 'RESERVED' | 'ACTIVE';
@@ -116,6 +109,13 @@ export interface StraightBenchState {
   readonly goalResumePhase?: GoalResumePhase;
   readonly overtimeNoticeTicks: number;
   readonly nextBulletId: number;
+  /** 中断・再開中も、現在見えていたゴール幅を保持する。 */
+  readonly goalExpansionRatio?: number;
+  readonly goalSnapshot?: {
+    readonly pucks: readonly PuckState[];
+    readonly bullets: readonly BulletState[];
+    readonly expansionRatio: number;
+  };
   readonly invalidReason?: string;
 }
 
@@ -159,15 +159,6 @@ function normalize(vector: Point, fallback: Point): Point {
   return scale(vector, 1 / length);
 }
 
-function dampVelocity(velocity: Point): Point {
-  const speed = magnitude(velocity);
-  if (speed <= Number.EPSILON) return { x: 0, y: 0 };
-  return scale(
-    velocity,
-    Math.max(0, speed - PUCK_DECELERATION_PER_SECOND / TICKS_PER_SECOND) / speed,
-  );
-}
-
 function cpuReactionTicks(difficulty: CpuDifficulty): number {
   return difficulty === 'normal' ? NORMAL_CPU_REACTION_TICKS : PRACTICE_CPU_REACTION_TICKS;
 }
@@ -208,36 +199,36 @@ function resetNoScoreState(): NoScoreState {
   };
 }
 
-function goalOpeningBoundsFor(
-  state: StraightBenchState,
-  goal: ReturnType<typeof getBoardDefinition>['goals'][number],
-): { readonly minX: number; readonly maxX: number } {
-  const expanded = state.match.phase === 'PLAYING' && state.noScore.goalExpanded;
-  const expansionRatio =
-    state.match.phase === 'OVERTIME'
-      ? OVERTIME_GOAL_EXPANSION_RATIO
-      : expanded
-        ? GOAL_EXPANSION_RATIO
-        : 0;
-  const width = (goal.openingMaxX - goal.openingMinX) * (1 + expansionRatio);
-  const center = (goal.openingMinX + goal.openingMaxX) / 2;
-  return { minX: center - width / 2, maxX: center + width / 2 };
+function expansionRatioFor(state: StraightBenchState): number {
+  if (state.match.phase === 'GOAL_PAUSE' && state.goalSnapshot) {
+    return state.goalSnapshot.expansionRatio;
+  }
+  if (state.match.phase === 'OVERTIME') return OVERTIME_GOAL_EXPANSION_RATIO;
+  if (state.goalExpansionRatio !== undefined) return state.goalExpansionRatio;
+  return state.noScore.goalExpanded ? GOAL_EXPANSION_RATIO : 0;
+}
+
+export function getStraightBenchGeometry(state: StraightBenchState): BoardGeometry {
+  return createBoardGeometry(boardFor(state), expansionRatioFor(state));
 }
 
 export function getGoalOpeningBounds(
   state: StraightBenchState,
   side: 'top' | 'bottom',
 ): { readonly minX: number; readonly maxX: number } {
-  const goal = boardFor(state).goals.find((candidate) => candidate.side === side);
+  const goal = getStraightBenchGeometry(state).goals.find((candidate) => candidate.side === side);
   if (!goal) return { minX: 0, maxX: 0 };
-  return goalOpeningBoundsFor(state, goal);
+  return { minX: goal.openingMinX, maxX: goal.openingMaxX };
 }
 
-function advanceNoScorePressure(
-  state: StraightBenchState,
-  nextMatch: MatchState,
-): { readonly state: StraightBenchState; readonly pulse: boolean } {
-  if (state.match.phase !== 'PLAYING' || nextMatch.phase !== 'PLAYING') {
+function advanceNoScorePressure(state: StraightBenchState): {
+  readonly state: StraightBenchState;
+  readonly pulse: boolean;
+} {
+  // Count the final PLAYING tick as part of the no-score window.  A goal can
+  // still be detected during this tick (including a goal on the time limit),
+  // and its snapshot must retain the expansion that was active at contact.
+  if (state.match.phase !== 'PLAYING') {
     return {
       state: {
         ...state,
@@ -315,6 +306,23 @@ function chooseCoreCandidate(
   return selected ?? null;
 }
 
+function coreBirthPosition(state: StraightBenchState): Point | null {
+  const candidateIndex = state.core.candidateIndex;
+  if (candidateIndex === null) return null;
+  return boardFor(state).coreCandidates[candidateIndex] ?? null;
+}
+
+function coreRoundResetFor(state: StraightBenchState): readonly Circle[] | null {
+  const candidateIndex = state.core.candidateIndex;
+  if (candidateIndex === null) return null;
+  const variants = boardFor(state).coreRoundResets.filter(
+    (reset) => reset.candidateIndex === candidateIndex,
+  );
+  if (variants.length === 0) return null;
+  const selected = variants[Math.abs(state.match.seed) % variants.length];
+  return selected?.normalPucks ?? null;
+}
+
 function startsCoreReservation(state: StraightBenchState, nextMatch: MatchState): boolean {
   const noticeTicks = CORE_NOTICE_SECONDS * TICKS_PER_SECOND;
   const activeTicks = CORE_ACTIVE_SECONDS * TICKS_PER_SECOND;
@@ -383,79 +391,6 @@ function syncActiveCorePosition(state: StraightBenchState): StraightBenchState {
   return { ...state, core: { ...state.core, position: corePuck.position } };
 }
 
-function goalOpeningContainsX(state: StraightBenchState, x: number): boolean {
-  const goal = boardFor(state).goals[0];
-  const opening = goalOpeningBoundsFor(state, goal);
-  return x >= opening.minX + GOAL_OPENING_PADDING && x <= opening.maxX - GOAL_OPENING_PADDING;
-}
-
-function crossingAtY(start: Point, end: Point, y: number): Point | null {
-  const direction = end.y - start.y;
-  if (Math.abs(direction) <= GOAL_THRESHOLD_EPSILON) return null;
-  const time = (y - start.y) / direction;
-  if (time < -GOAL_THRESHOLD_EPSILON || time > 1 + GOAL_THRESHOLD_EPSILON) return null;
-  const clampedTime = Math.max(0, Math.min(1, time));
-  return {
-    x: start.x + (end.x - start.x) * clampedTime,
-    y,
-  };
-}
-
-function crossedGoal(
-  state: StraightBenchState,
-  start: Point,
-  end: Point,
-  radius: number,
-): Team | null {
-  const [topGoal, bottomGoal] = boardFor(state).goals;
-  const topThreshold = topGoal.scorePlane - radius;
-  const bottomThreshold = bottomGoal.scorePlane + radius;
-
-  if (start.y > topThreshold && end.y <= topThreshold) {
-    const crossing = crossingAtY(start, end, topThreshold);
-    if (crossing && goalOpeningContainsX(state, crossing.x)) return topGoal.scoreFor;
-  }
-  if (start.y < bottomThreshold && end.y >= bottomThreshold) {
-    const crossing = crossingAtY(start, end, bottomThreshold);
-    if (crossing && goalOpeningContainsX(state, crossing.x)) return bottomGoal.scoreFor;
-  }
-  return null;
-}
-
-function bounceInsideBoard(
-  state: StraightBenchState,
-  position: Point,
-  velocity: Point,
-  radius: number,
-): {
-  readonly position: Point;
-  readonly velocity: Point;
-} {
-  let nextPosition = position;
-  let nextVelocity = velocity;
-
-  if (nextPosition.x < radius) {
-    nextPosition = { ...nextPosition, x: radius };
-    nextVelocity = { ...nextVelocity, x: Math.abs(nextVelocity.x) };
-  } else if (nextPosition.x > STRAIGHT_BENCH_WIDTH - radius) {
-    nextPosition = { ...nextPosition, x: STRAIGHT_BENCH_WIDTH - radius };
-    nextVelocity = { ...nextVelocity, x: -Math.abs(nextVelocity.x) };
-  }
-
-  if (nextPosition.y < radius && !goalOpeningContainsX(state, nextPosition.x)) {
-    nextPosition = { ...nextPosition, y: radius };
-    nextVelocity = { ...nextVelocity, y: Math.abs(nextVelocity.y) };
-  } else if (
-    nextPosition.y > STRAIGHT_BENCH_HEIGHT - radius &&
-    !goalOpeningContainsX(state, nextPosition.x)
-  ) {
-    nextPosition = { ...nextPosition, y: STRAIGHT_BENCH_HEIGHT - radius };
-    nextVelocity = { ...nextVelocity, y: -Math.abs(nextVelocity.y) };
-  }
-
-  return { position: nextPosition, velocity: nextVelocity };
-}
-
 function resetPuck(state: StraightBenchState, id: number): PuckState {
   const template = boardFor(state).initialPucks[(id - 1) % boardFor(state).initialPucks.length] ?? {
     center: { x: STRAIGHT_BENCH_WIDTH / 2, y: STRAIGHT_BENCH_HEIGHT / 2 },
@@ -472,13 +407,22 @@ function resetPuck(state: StraightBenchState, id: number): PuckState {
 }
 
 function resetPucksForRound(state: StraightBenchState): readonly PuckState[] {
-  const basePucks = boardFor(state).initialPucks.map((_, index) => resetPuck(state, index + 1));
-  return state.core.phase === 'ACTIVE' && state.core.position
+  const normalReset =
+    state.core.phase === 'RESERVED' || state.core.phase === 'ACTIVE'
+      ? coreRoundResetFor(state)
+      : null;
+  const basePucks = (normalReset ?? boardFor(state).initialPucks).map((template, index) => ({
+    ...resetPuck(state, index + 1),
+    position: template.center,
+    radius: template.radius,
+  }));
+  const corePosition = state.core.phase === 'ACTIVE' ? coreBirthPosition(state) : null;
+  return state.core.phase === 'ACTIVE' && corePosition
     ? [
         ...basePucks,
         {
           id: basePucks.length + 1,
-          position: state.core.position,
+          position: corePosition,
           velocity: { x: 0, y: 0 },
           radius: CORE_RADIUS,
           active: true,
@@ -489,13 +433,21 @@ function resetPucksForRound(state: StraightBenchState): readonly PuckState[] {
 }
 
 function resetForNextRound(state: StraightBenchState): StraightBenchState {
+  const corePosition =
+    state.core.phase === 'ACTIVE' ? coreBirthPosition(state) : state.core.position;
+  const roundState =
+    state.core.phase === 'ACTIVE' && corePosition
+      ? { ...state, core: { ...state.core, position: corePosition } }
+      : state;
   return {
-    ...state,
-    pucks: resetPucksForRound(state),
+    ...roundState,
+    pucks: resetPucksForRound(roundState),
     bullets: [],
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuThinkTicks: cpuReactionTicks(state.difficulty),
+    goalSnapshot: undefined,
+    goalExpansionRatio: undefined,
   };
 }
 
@@ -533,12 +485,23 @@ function applyPhysicalGoals(
     ticksRemaining: clockedMatch.ticksRemaining,
     phase: 'GOAL_PAUSE',
   };
+  const goalPuckIds = new Set(
+    goals.map((goal) => goal.puckId).filter((id): id is number => Number.isSafeInteger(id)),
+  );
+  const snapshotPucks = state.pucks.map((puck) =>
+    goalPuckIds.has(puck.id) ? { ...puck, active: true, velocity: { x: 0, y: 0 } } : { ...puck },
+  );
   return {
     ...state,
     match,
     noScore: resetNoScoreState(),
-    pucks: resetPucksForRound(state),
-    bullets: [],
+    pucks: state.pucks,
+    bullets: state.bullets,
+    goalSnapshot: {
+      pucks: snapshotPucks,
+      bullets: state.bullets.map((bullet) => ({ ...bullet })),
+      expansionRatio: expansionRatioFor(state),
+    },
     cooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
     cpuThinkTicks: cpuReactionTicks(state.difficulty),
@@ -598,243 +561,6 @@ function stepOvertimeNotice(state: StraightBenchState): StraightBenchState {
   };
 }
 
-function moveBullets(state: StraightBenchState): {
-  readonly bullets: readonly BulletState[];
-  readonly pucks: readonly PuckState[];
-} {
-  const pucks = state.pucks.map((puck) => ({ ...puck }));
-  const bullets: BulletState[] = [];
-
-  for (const bullet of state.bullets) {
-    if (bullet.remainingTicks <= 0) continue;
-    const nextPosition = add(bullet.position, scale(bullet.velocity, 1 / TICKS_PER_SECOND));
-    let hitPuckIndex = -1;
-    let hitTime = Number.POSITIVE_INFINITY;
-    for (let index = 0; index < pucks.length; index += 1) {
-      const puck = pucks[index];
-      if (!puck || !puck.active) continue;
-      const hit = sweptCircleAgainstCircle(bullet.position, nextPosition, bullet.radius, {
-        center: puck.position,
-        radius: puck.radius,
-      });
-      if (hit && hit.time < hitTime) {
-        hitPuckIndex = index;
-        hitTime = hit.time;
-      }
-    }
-
-    const obstacleHit = earliestObstacleHit(state, bullet.position, nextPosition, bullet.radius);
-    if (obstacleHit && obstacleHit.hit.time <= hitTime) {
-      if (obstacleHit.kind === 'reflector' && bullet.reflections === 0) {
-        const normal = outwardCollisionNormal(obstacleHit.normal, bullet.velocity);
-        bullets.push({
-          ...bullet,
-          position: {
-            x: obstacleHit.hit.point.x + normal.x * 0.1,
-            y: obstacleHit.hit.point.y + normal.y * 0.1,
-          },
-          velocity: reflectVector(bullet.velocity, normal),
-          remainingTicks: bullet.remainingTicks - 1,
-          reflections: 1,
-        });
-      }
-      continue;
-    }
-
-    if (hitPuckIndex >= 0) {
-      const puck = pucks[hitPuckIndex];
-      if (puck) {
-        const direction = normalize(bullet.velocity, { x: 0, y: -1 });
-        pucks[hitPuckIndex] = {
-          ...puck,
-          velocity: clampVectorMagnitude(
-            add(puck.velocity, scale(direction, PUCK_HIT_IMPULSE)),
-            MAX_PUCK_SPEED,
-          ),
-        };
-      }
-      continue;
-    }
-
-    if (
-      nextPosition.x < -bullet.radius ||
-      nextPosition.x > STRAIGHT_BENCH_WIDTH + bullet.radius ||
-      nextPosition.y < -bullet.radius ||
-      nextPosition.y > STRAIGHT_BENCH_HEIGHT + bullet.radius
-    ) {
-      continue;
-    }
-    bullets.push({
-      ...bullet,
-      position: nextPosition,
-      remainingTicks: bullet.remainingTicks - 1,
-    });
-  }
-
-  return { bullets, pucks };
-}
-
-interface ObstacleHit {
-  readonly hit: SweepHit;
-  readonly kind: 'solid' | 'reflector';
-  readonly normal: Point;
-}
-
-function earliestObstacleHit(
-  state: StraightBenchState,
-  start: Point,
-  end: Point,
-  movingRadius: number,
-): ObstacleHit | null {
-  const hits: ObstacleHit[] = [];
-  const board = boardFor(state);
-  for (const box of board.staticBoxes) {
-    const hit = sweptCircleAgainstAabb(start, end, movingRadius, box);
-    if (hit) hits.push({ hit, kind: 'solid', normal: { x: 0, y: -1 } });
-  }
-  for (const circle of board.staticCircles) {
-    const hit = sweptCircleAgainstCircle(start, end, movingRadius, circle);
-    if (hit) hits.push({ hit, kind: 'solid', normal: { x: 0, y: -1 } });
-  }
-  for (const segment of board.staticSegments) {
-    const hit = sweptCircleAgainstSegment(start, end, movingRadius, segment);
-    if (hit) hits.push({ hit, kind: 'reflector', normal: segmentNormal(segment) });
-  }
-  return hits.reduce<ObstacleHit | null>(
-    (earliest, candidate) =>
-      earliest === null || candidate.hit.time < earliest.hit.time ? candidate : earliest,
-    null,
-  );
-}
-
-function boxNormalAtHit(hit: SweepHit, box: Aabb, radius: number): Point {
-  const expanded = {
-    left: box.minX - radius,
-    right: box.maxX + radius,
-    top: box.minY - radius,
-    bottom: box.maxY + radius,
-  };
-  const candidates = [
-    { distance: Math.abs(hit.point.x - expanded.left), normal: { x: -1, y: 0 } },
-    { distance: Math.abs(hit.point.x - expanded.right), normal: { x: 1, y: 0 } },
-    { distance: Math.abs(hit.point.y - expanded.top), normal: { x: 0, y: -1 } },
-    { distance: Math.abs(hit.point.y - expanded.bottom), normal: { x: 0, y: 1 } },
-  ];
-  return candidates.reduce((best, candidate) =>
-    candidate.distance < best.distance ? candidate : best,
-  ).normal;
-}
-
-function segmentNormal(segment: Segment): Point {
-  const dx = segment.end.x - segment.start.x;
-  const dy = segment.end.y - segment.start.y;
-  const length = Math.hypot(dx, dy);
-  if (length <= Number.EPSILON) return { x: 0, y: -1 };
-  return { x: -dy / length, y: dx / length };
-}
-
-function outwardCollisionNormal(normal: Point, velocity: Point): Point {
-  const dot = velocity.x * normal.x + velocity.y * normal.y;
-  return dot > 0 ? { x: -normal.x, y: -normal.y } : normal;
-}
-
-function bounceFromObstacles(
-  state: StraightBenchState,
-  start: Point,
-  end: Point,
-  velocity: Point,
-  radius: number,
-): { readonly position: Point; readonly velocity: Point } {
-  let earliest: { readonly hit: SweepHit; readonly normal: Point } | null = null;
-  for (const box of boardFor(state).staticBoxes) {
-    const hit = sweptCircleAgainstAabb(start, end, radius, box);
-    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
-      earliest = { hit, normal: boxNormalAtHit(hit, box, radius) };
-    }
-  }
-  for (const circle of boardFor(state).staticCircles) {
-    const hit = sweptCircleAgainstCircle(start, end, radius, circle);
-    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
-      earliest = {
-        hit,
-        normal: normalize(
-          { x: hit.point.x - circle.center.x, y: hit.point.y - circle.center.y },
-          { x: 0, y: -1 },
-        ),
-      };
-    }
-  }
-  for (const segment of boardFor(state).staticSegments) {
-    const hit = sweptCircleAgainstSegment(start, end, radius, segment);
-    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
-      earliest = { hit, normal: segmentNormal(segment) };
-    }
-  }
-  const reservation = coreReservationCircle(state);
-  if (reservation) {
-    const hit = sweptCircleAgainstCircle(start, end, radius, reservation);
-    if (hit && (earliest === null || hit.time < earliest.hit.time)) {
-      earliest = {
-        hit,
-        normal: normalize(
-          { x: hit.point.x - reservation.center.x, y: hit.point.y - reservation.center.y },
-          { x: 0, y: -1 },
-        ),
-      };
-    }
-  }
-  if (!earliest) return { position: end, velocity };
-
-  const normal = outwardCollisionNormal(earliest.normal, velocity);
-
-  return {
-    position: {
-      x: earliest.hit.point.x + normal.x * 0.1,
-      y: earliest.hit.point.y + normal.y * 0.1,
-    },
-    velocity: reflectVector(velocity, normal),
-  };
-}
-
-function movePucks(state: StraightBenchState): {
-  readonly pucks: readonly PuckState[];
-  readonly goals: readonly GoalEvent[];
-} {
-  const pucks = state.pucks;
-  const nextPucks: PuckState[] = [];
-  const goals: GoalEvent[] = [];
-
-  for (const puck of pucks) {
-    if (!puck.active) {
-      nextPucks.push(puck);
-      continue;
-    }
-    const start = puck.position;
-    const velocity = clampVectorMagnitude(puck.velocity, MAX_PUCK_SPEED);
-    const end = add(start, scale(velocity, 1 / TICKS_PER_SECOND));
-    const goal = crossedGoal(state, start, end, puck.radius);
-    if (goal) {
-      goals.push({ team: goal, points: puck.points ?? 1 });
-      nextPucks.push({ ...puck, active: false, position: end, velocity: { x: 0, y: 0 } });
-      continue;
-    }
-    const obstacleBounce = bounceFromObstacles(state, start, end, velocity, puck.radius);
-    const bounced = bounceInsideBoard(
-      state,
-      obstacleBounce.position,
-      obstacleBounce.velocity,
-      puck.radius,
-    );
-    nextPucks.push({
-      ...puck,
-      position: bounced.position,
-      velocity: dampVelocity(bounced.velocity),
-    });
-  }
-
-  return { pucks: nextPucks, goals };
-}
-
 function stepPlaying(state: StraightBenchState): StraightBenchState {
   const cooldownTicks = Math.max(0, state.cooldownTicks - 1);
   const cpuCooldownTicks = Math.max(0, state.cpuCooldownTicks - 1);
@@ -846,28 +572,37 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
     cpuCooldownTicks,
     cpuThinkTicks,
   };
-  const pressure = advanceNoScorePressure(preparedState, clockedMatch);
+  const pressure = advanceNoScorePressure(preparedState);
   const pressuredState = pressure.pulse ? applyNoScorePulse(pressure.state) : pressure.state;
   const corePreparedState = prepareCoreReservation(pressuredState, clockedMatch);
   const cpuReadyState =
     isActivePhase(clockedMatch.phase) && cpuCooldownTicks === 0 && cpuThinkTicks === 0
       ? fireCpuShot(corePreparedState, chooseCpuTarget(corePreparedState))
       : corePreparedState;
-  const movedBullets = moveBullets(cpuReadyState);
-  const movedPucks = movePucks({ ...cpuReadyState, pucks: movedBullets.pucks });
+  const physics = stepPhysics({
+    board: boardFor(cpuReadyState),
+    geometry: getStraightBenchGeometry(cpuReadyState),
+    pucks: cpuReadyState.pucks,
+    bullets: cpuReadyState.bullets,
+    reservation: coreReservationCircle(cpuReadyState),
+    dtSeconds: 1 / FIXED_HZ,
+    puckSpeedLimit: MAX_PUCK_SPEED,
+    puckDecelerationPerSecond: PUCK_DECELERATION_PER_SECOND,
+  });
+  if (physics.invalidReason) return invalidateStraightBench(cpuReadyState, physics.invalidReason);
   const movedState: StraightBenchState = {
     ...cpuReadyState,
     match: state.match,
-    bullets: movedBullets.bullets,
-    pucks: movedPucks.pucks,
+    bullets: physics.bullets,
+    pucks: physics.pucks,
   };
   const scoredState = applyPhysicalGoals(
     syncActiveCorePosition(movedState),
-    movedPucks.goals,
+    physics.goals,
     clockedMatch,
   );
   const activatedState = activateCoreIfDue(scoredState, clockedMatch);
-  if (movedPucks.goals.length > 0) return activatedState;
+  if (physics.goals.length > 0) return activatedState;
   if (clockedMatch.phase === 'RESULT') return { ...activatedState, bullets: [] };
   if (clockedMatch.phase === 'OVERTIME_NOTICE') {
     return { ...activatedState, bullets: [], overtimeNoticeTicks: RESUME_COUNTDOWN_TICKS };
@@ -990,7 +725,9 @@ export function suspendStraightBench(
   reason: SuspensionReason = 'manual',
 ): StraightBenchState {
   const match = suspendMatch(state.match, reason);
-  return match === state.match ? state : { ...state, match };
+  return match === state.match
+    ? state
+    : { ...state, match, goalExpansionRatio: expansionRatioFor(state) };
 }
 
 export function beginStraightBenchResume(state: StraightBenchState): StraightBenchState {
