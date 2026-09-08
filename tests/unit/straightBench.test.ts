@@ -498,7 +498,9 @@ describe('straight bench simulation', () => {
 
     expect(bounced.match.playerScore).toBe(0);
     expect(bounced.match.phase).toBe('PLAYING');
-    expect(bounced.pucks[0]?.position.y).toBe(14);
+    // レールの中心線は表示と同じy=24。半径14の円は接触後に
+    // 残り時間を進むため、固定値14ではなくレール内側へ戻る。
+    expect(bounced.pucks[0]?.position.y).toBeGreaterThan(38);
     expect(bounced.pucks[0]?.velocity.y).toBeGreaterThan(0);
   });
 
