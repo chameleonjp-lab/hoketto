@@ -36,6 +36,8 @@ export interface MatchState {
 export interface GoalEvent {
   readonly team: Team;
   readonly points: 1 | 2;
+  /** 得点した物体のID。旧呼び出し側では省略可能。 */
+  readonly puckId?: number;
 }
 
 export function createMatchState(seed: number, durationSeconds = MATCH_SECONDS): MatchState {
