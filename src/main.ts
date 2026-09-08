@@ -117,7 +117,7 @@ const resultHomeButton = requireElement<HTMLButtonElement>('#result-home');
 const SUPABASE_URL = 'https://mlpnjgezrnhdxsxolyzj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_drzcy0v97knU6FgjqSgBHw_0A9XPdFM';
 const GAME_SLUG = 'hoketto';
-const CLIENT_VERSION = 'hoketto-2026-08-31';
+const CLIENT_VERSION = 'hoketto-2026-09-08-physics-2';
 
 let flow: AppFlowState = createAppFlowState();
 let game: ReturnType<typeof mountTechnicalProbe> | null = null;
@@ -288,7 +288,7 @@ function updatePauseButton(state: TechnicalProbePauseState): void {
     (state.phase === 'paused' && !state.canResume);
   gamePauseButton.textContent =
     state.phase === 'invalid'
-      ? '復元できません'
+      ? '無効終了'
       : state.phase === 'paused'
         ? state.canResume
           ? '再開'
@@ -316,7 +316,7 @@ function pauseReasonMessage(reason: TechnicalProbePauseState['reason']): string 
 function updateGameLiveStatusForPause(state: TechnicalProbePauseState): void {
   if (state.phase === 'invalid') {
     updateGameLiveStatus(
-      '描画を復元できないため、試合を無効にしました。ホームへ戻ってやり直してください。',
+      '試合を続けられないため、今回の得点は記録しません。ホームへ戻ってやり直してください。',
     );
     return;
   }
