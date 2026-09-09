@@ -65,6 +65,6 @@
 - Phaserの縮尺モードを`NONE`、親要素の自動拡張を無効にし、DOM側の固定枠と二重にサイズを管理しない。これにより、親要素とCanvasのサイズが往復する再計算を防ぐ。
 - モード選択の見出しを「遊ぶモードを選ぶ」へ変更し、試合中にも「押して狙い、指を離して撃つ」を短く残した。
 
-単体検査153件、format/lint/typecheck/buildは成功。固定ビューポート、9:16比率、画面切り替え後のスクロール停止はChromium／WebKit／FirefoxのCIブラウザ検査で確認する。iPhone 17 Pro Safariでの実機確認は未実施。
+単体検査153件、format/lint/typecheck/buildは成功。固定ビューポート、9:16比率、画面切り替え後のスクロール停止は、CIのChromium／WebKit／Firefoxブラウザ検査で確認済み（run #468）。iPhone 17 Pro Safariでの実機確認は未実施。
 
 今回の変更で物理規則は触っていないが、既存の3盤面×2難易度×4戦法×100seed（2,400試合）を再実行した。24条件すべてで`invalid=0`、`overlapMatches=0`、`unsafeRoundResetMatches=0`だった。勝敗や無得点区間はゲームバランスの診断値として扱い、今回の画面固定の合否には使わない。
