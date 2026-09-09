@@ -49,10 +49,12 @@ test.describe('ホケットのブラウザ導線', () => {
     await page.mouse.move(box.x + box.width * 0.62, box.y + box.height * 0.62);
     await page.mouse.up();
 
-    await expect(page.locator('#game-live-status')).toHaveText(/自分が弾を発射しました/, {
-      timeout: 2_000,
+    await expect(page.locator('#game-root')).toHaveAttribute('data-player-shot-count', '1', {
+      timeout: 1_000,
     });
-    await expect(page.locator('#game-readiness-label')).toHaveText('充電中');
+    await expect(page.locator('#game-readiness-label')).toHaveText('充電中', {
+      timeout: 500,
+    });
     await expect(page.locator('#game-charge-percent')).toHaveText(/充電 \d+%/);
   });
 
