@@ -3,11 +3,20 @@ import { assertValidBoard } from '../physics/boardValidator';
 
 export type PlayableBoardId = 'straight-bench' | 'twin-block' | 'ricochet-lane';
 
+const BOUNDS = { minX: 24, minY: 24, maxX: 336, maxY: 616 };
+const CORE_ROUND_RESETS = [
+  { candidateIndex: 0, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+  { candidateIndex: 1, normalPucks: [{ center: { x: 140, y: 320 }, radius: 14 }] },
+  { candidateIndex: 1, normalPucks: [{ center: { x: 220, y: 320 }, radius: 14 }] },
+  { candidateIndex: 2, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+];
+
 export const STRAIGHT_BENCH: BoardDefinition = {
   id: 'straight-bench',
   width: 360,
   height: 640,
-  minimumCorridor: 360,
+  bounds: BOUNDS,
+  minimumCorridor: 116,
   goals: [
     {
       side: 'top',
@@ -35,13 +44,15 @@ export const STRAIGHT_BENCH: BoardDefinition = {
     { x: 180, y: 320 },
     { x: 270, y: 320 },
   ],
+  coreRoundResets: CORE_ROUND_RESETS,
 };
 
 export const TWIN_BLOCK: BoardDefinition = {
   id: 'twin-block',
   width: 360,
   height: 640,
-  minimumCorridor: 136,
+  bounds: BOUNDS,
+  minimumCorridor: 40,
   goals: STRAIGHT_BENCH.goals,
   staticCircles: [],
   staticBoxes: [
@@ -55,13 +66,15 @@ export const TWIN_BLOCK: BoardDefinition = {
     { x: 180, y: 320 },
     { x: 220, y: 320 },
   ],
+  coreRoundResets: CORE_ROUND_RESETS,
 };
 
 export const RICOCHET_LANE: BoardDefinition = {
   id: 'ricochet-lane',
   width: 360,
   height: 640,
-  minimumCorridor: 110,
+  bounds: BOUNDS,
+  minimumCorridor: 54,
   goals: STRAIGHT_BENCH.goals,
   staticCircles: [],
   staticBoxes: [],
@@ -75,6 +88,7 @@ export const RICOCHET_LANE: BoardDefinition = {
     { x: 180, y: 320 },
     { x: 240, y: 320 },
   ],
+  coreRoundResets: CORE_ROUND_RESETS,
 };
 
 export function getBoardDefinition(board: PlayableBoardId): BoardDefinition {

@@ -36,4 +36,31 @@ describe('board validator', () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toContain('上側ゴールはplayer、下側ゴールはcpuへ得点する必要があります');
   });
+
+  it('自己申告の通路幅が実形状を上回る盤面を拒否する', () => {
+    const invalid = { ...STRAIGHT_BENCH, minimumCorridor: 117 };
+    const result = validateBoard(invalid);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('自己申告の通路幅が実測値を超えています');
+  });
+
+  it('標準境界から外れた盤面を拒否する', () => {
+    const invalid = { ...STRAIGHT_BENCH, bounds: { ...STRAIGHT_BENCH.bounds, minX: 14 } };
+    const result = validateBoard(invalid);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('盤面の境界は標準値(24,24)-(336,616)である必要があります');
+  });
+
+  it('候補ごとの安全なラウンドリセットがない盤面を拒否する', () => {
+    const invalid = {
+      ...STRAIGHT_BENCH,
+      coreRoundResets: STRAIGHT_BENCH.coreRoundResets.filter((reset) => reset.candidateIndex !== 2),
+    };
+    const result = validateBoard(invalid);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('高出力コア候補ごとにコアリセットが1つ以上必要です');
+  });
 });

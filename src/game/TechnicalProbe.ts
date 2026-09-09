@@ -18,7 +18,7 @@ import {
   firePlayerShot,
   getCpuTurret,
   getCpuTurretReadiness,
-  getGoalOpeningBounds,
+  getStraightBenchGeometry,
   getPlayerTurret,
   getPlayerTurretReadiness,
   secondsRemaining,
@@ -232,7 +232,10 @@ class TechnicalProbeScene extends Phaser.Scene {
     } else if (!this.canAim() && this.inputController.getState().phase === 'READY') {
       this.inputController.setCharging(true);
     }
-    if (this.lastPhase === 'COUNTDOWN' && this.state.match.phase !== 'COUNTDOWN') {
+    if (
+      (this.lastPhase === 'COUNTDOWN' && this.state.match.phase !== 'COUNTDOWN') ||
+      (this.lastPhase !== 'INVALID' && this.state.match.phase === 'INVALID')
+    ) {
       this.emitPauseState();
     }
     this.lastPhase = this.state.match.phase;
@@ -636,13 +639,11 @@ class TechnicalProbeScene extends Phaser.Scene {
     graphics.fillStyle(this.boardColor, 1);
     graphics.fillRect(0, 0, WIDTH, HEIGHT);
 
+    const geometry = getStraightBenchGeometry(this.state);
     graphics.lineStyle(3, this.lineColor, 0.7);
-    graphics.strokeRect(
-      BOARD_MARGIN,
-      BOARD_MARGIN,
-      WIDTH - BOARD_MARGIN * 2,
-      HEIGHT - BOARD_MARGIN * 2,
-    );
+    for (const wall of geometry.walls) {
+      graphics.lineBetween(wall.start.x, wall.start.y, wall.end.x, wall.end.y);
+    }
     graphics.lineStyle(1, this.lineColor, 0.25);
     graphics.lineBetween(BOARD_MARGIN, HEIGHT / 2, WIDTH - BOARD_MARGIN, HEIGHT / 2);
 
@@ -682,9 +683,17 @@ class TechnicalProbeScene extends Phaser.Scene {
     }
 
     this.coreText.setVisible(false);
-    this.drawCoreReservation(graphics);
+    if (this.state.match.phase !== 'INVALID') this.drawCoreReservation(graphics);
 
-    for (const bullet of this.state.bullets) {
+    const visibleBullets =
+      this.state.match.phase === 'INVALID'
+        ? []
+        : (this.state.goalSnapshot?.bullets ?? this.state.bullets);
+    const visiblePucks =
+      this.state.match.phase === 'INVALID'
+        ? []
+        : (this.state.goalSnapshot?.pucks ?? this.state.pucks);
+    for (const bullet of visibleBullets) {
       const color = bullet.owner === 'cpu' ? this.cpuColor : this.playerColor;
       graphics.fillStyle(color, 1);
       if (bullet.owner === 'cpu') {
@@ -739,7 +748,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       }
     }
 
-    for (const puck of this.state.pucks) {
+    for (const puck of visiblePucks) {
       if (!puck.active) continue;
       if (puck.points === 2) {
         this.drawCorePuck(graphics, puck.position.x, puck.position.y);
@@ -806,7 +815,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       notices.push(`再開まで ${Math.ceil(this.state.match.resumeCountdownTicks / FIXED_HZ)}秒`);
     }
     if (phase === 'RESULT') notices.push('結果を表示中');
-    if (phase === 'INVALID') notices.push('描画を復元できません。ホームへ戻ってやり直してください');
+    if (phase === 'INVALID') notices.push('試合を無効にしました\nホームへ戻ってください');
     if (phase === 'PLAYING') {
       const pressure = this.state.noScore;
       if (
@@ -870,14 +879,27 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private drawGoal(graphics: Phaser.GameObjects.Graphics, side: 'top' | 'bottom'): void {
-    const y = side === 'top' ? BOARD_MARGIN : HEIGHT - BOARD_MARGIN;
+    const goal = getStraightBenchGeometry(this.state).goals.find(
+      (candidate) => candidate.side === side,
+    );
+    if (!goal) return;
+    const y = goal.scorePlane;
     const goalColor = side === 'top' ? this.cpuColor : this.playerColor;
-    const opening = getGoalOpeningBounds(this.state, side);
     graphics.lineStyle(6, goalColor, 0.9);
-    graphics.lineBetween(BOARD_MARGIN, y, opening.minX, y);
-    graphics.lineBetween(opening.maxX, y, WIDTH - BOARD_MARGIN, y);
-    graphics.lineStyle(3, goalColor, 0.65);
-    graphics.lineBetween(opening.minX, y, opening.maxX, y);
+    for (const rail of goal.rails) {
+      graphics.lineBetween(rail.start.x, rail.start.y, rail.end.x, rail.end.y);
+    }
+    for (const mouthSide of goal.mouthSides) {
+      graphics.lineBetween(mouthSide.start.x, mouthSide.start.y, mouthSide.end.x, mouthSide.end.y);
+    }
+    graphics.fillStyle(goalColor, 0.9);
+    graphics.lineStyle(2, this.lineColor, 0.85);
+    for (const post of goal.posts) {
+      graphics.fillCircle(post.center.x, post.center.y, post.radius);
+      graphics.strokeCircle(post.center.x, post.center.y, post.radius);
+    }
+    graphics.lineStyle(1, goalColor, 0.45);
+    graphics.lineBetween(goal.openingMinX, y, goal.openingMaxX, y);
   }
 
   private drawObstacles(graphics: Phaser.GameObjects.Graphics): void {
@@ -909,9 +931,9 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (this.state.core.phase !== 'RESERVED' || !this.state.core.position) return;
     const { x, y } = this.state.core.position;
     graphics.lineStyle(8, 0x102832, 1);
-    graphics.strokeCircle(x, y, PUCK_RADIUS + 8);
+    graphics.strokeCircle(x, y, PUCK_RADIUS);
     graphics.lineStyle(3, 0xffd34e, 1);
-    graphics.strokeCircle(x, y, PUCK_RADIUS + 8);
+    graphics.strokeCircle(x, y, PUCK_RADIUS);
     this.coreText.setPosition(x, y);
     this.coreText.setText('2');
     this.coreText.setVisible(true);
@@ -927,6 +949,8 @@ class TechnicalProbeScene extends Phaser.Scene {
     });
     graphics.fillStyle(0xffd34e, 1);
     graphics.fillPoints(points, true, true);
+    graphics.lineStyle(1, 0xffd34e, 0.85);
+    graphics.strokeCircle(x, y, PUCK_RADIUS);
     graphics.lineStyle(2, 0x102832, 1);
     graphics.strokePoints(points, true, true);
   }
