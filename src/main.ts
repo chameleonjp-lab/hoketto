@@ -553,6 +553,7 @@ function enterGame(seed = nextSeed): void {
   nextSeed = seed + 1;
   flow = startGame(flow);
   render();
+  gameRoot.dataset.playerShotCount = '0';
   updateGameLiveStatus('試合開始。下から弾を撃ち、白いパックを上の相手ゴールへ入れます。');
   if (!game) {
     game = mountTechnicalProbe(gameRoot, {
@@ -569,6 +570,8 @@ function enterGame(seed = nextSeed): void {
       onShot: (owner) => {
         soundController.playShot(owner);
         if (owner === 'player') {
+          const shotCount = Number(gameRoot.dataset.playerShotCount ?? '0');
+          gameRoot.dataset.playerShotCount = String(Number.isFinite(shotCount) ? shotCount + 1 : 1);
           updateGameLiveStatus(
             '自分が弾を発射しました。上の充電ゲージが満ちるまで次の一発は撃てません。',
           );
