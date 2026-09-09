@@ -130,6 +130,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   } | null = null;
   private renderRecoveryTimer: number | null = null;
   private capturedPointer: { readonly internalId: number; readonly nativeId: number } | null = null;
+  private readonly useNativePointerEvents = typeof PointerEvent !== 'undefined';
   private lastPlayerReadinessKey = '';
 
   public constructor(options: TechnicalProbeOptions = {}) {
@@ -202,11 +203,18 @@ class TechnicalProbeScene extends Phaser.Scene {
       fontStyle: 'bold',
     });
     this.playerGoalText.setOrigin(0.5);
-    this.input.on('pointerdown', this.handlePointerDown, this);
-    this.input.on('pointermove', this.handlePointerMove, this);
-    this.input.on('pointerup', this.handlePointerUp, this);
-    this.input.on('pointerupoutside', this.handlePointerUpOutside, this);
-    this.input.on('pointercancel', this.handlePointerCancel, this);
+    if (this.useNativePointerEvents) {
+      this.canvas.addEventListener('pointerdown', this.handleNativePointerDown);
+      this.canvas.addEventListener('pointermove', this.handleNativePointerMove);
+      this.canvas.addEventListener('pointerup', this.handleNativePointerUp);
+      this.canvas.addEventListener('pointercancel', this.handleNativePointerCancel);
+    } else {
+      this.input.on('pointerdown', this.handlePointerDown, this);
+      this.input.on('pointermove', this.handlePointerMove, this);
+      this.input.on('pointerup', this.handlePointerUp, this);
+      this.input.on('pointerupoutside', this.handlePointerUpOutside, this);
+      this.input.on('pointercancel', this.handlePointerCancel, this);
+    }
     this.input.keyboard?.on('keydown', this.handleKeyboardDown, this);
     this.syncKeyboardState();
     this.emitPauseState();
@@ -311,6 +319,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
+    if (this.useNativePointerEvents) return;
     if (this.state.match.phase === 'RESULT' || this.state.match.phase === 'SUSPENDED') return;
     const event = this.inputController.pointerDown(pointer.id, this.pointFromPointer(pointer));
     this.applyPointerInputEvent(event);
@@ -318,12 +327,14 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private handlePointerMove(pointer: Phaser.Input.Pointer): void {
+    if (this.useNativePointerEvents) return;
     this.applyPointerInputEvent(
       this.inputController.pointerMove(pointer.id, this.pointFromPointer(pointer)),
     );
   }
 
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
+    if (this.useNativePointerEvents) return;
     this.applyPointerInputEvent(
       this.inputController.pointerUp(pointer.id, this.pointFromPointer(pointer)),
     );
@@ -331,6 +342,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private handlePointerUpOutside(pointer: Phaser.Input.Pointer): void {
+    if (this.useNativePointerEvents) return;
     this.applyPointerInputEvent(
       this.inputController.pointerCancel(pointer.id, 'outside-input-area'),
     );
@@ -339,6 +351,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private handlePointerCancel(pointer: Phaser.Input.Pointer): void {
+    if (this.useNativePointerEvents) return;
     this.applyPointerInputEvent(this.inputController.pointerCancel(pointer.id));
     this.aimPoint = null;
     this.releaseCapturedPointer();
@@ -346,7 +359,11 @@ class TechnicalProbeScene extends Phaser.Scene {
 
   private capturePointer(pointer: Phaser.Input.Pointer): void {
     const nativeId = Number.isFinite(pointer.pointerId) ? pointer.pointerId : pointer.id;
-    this.capturedPointer = { internalId: pointer.id, nativeId };
+    this.capturePointerId(pointer.id, nativeId);
+  }
+
+  private capturePointerId(internalId: number, nativeId: number): void {
+    this.capturedPointer = { internalId, nativeId };
     try {
       this.canvas.setPointerCapture(nativeId);
     } catch {
@@ -381,6 +398,53 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.applyInputEvent(event);
     if (event.kind === 'cancel' || event.kind === 'fire') this.releaseCapturedPointer();
   }
+
+  private nativePointFromPointer(event: PointerEvent): Point {
+    const mapped = mapClientPointToLogical(
+      { clientX: event.clientX, clientY: event.clientY },
+      this.canvas.getBoundingClientRect(),
+      WIDTH,
+      HEIGHT,
+    );
+    return mapped ?? { x: event.clientX, y: event.clientY };
+  }
+
+  private handleNativePointerDown = (event: PointerEvent): void => {
+    event.preventDefault();
+    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    if (this.state.match.phase === 'RESULT' || this.state.match.phase === 'SUSPENDED') return;
+    const inputEvent = this.inputController.pointerDown(
+      event.pointerId,
+      this.nativePointFromPointer(event),
+    );
+    this.applyPointerInputEvent(inputEvent);
+    if (inputEvent.kind === 'aim-start') this.capturePointerId(event.pointerId, event.pointerId);
+  };
+
+  private handleNativePointerMove = (event: PointerEvent): void => {
+    event.preventDefault();
+    if (!event.isPrimary) return;
+    this.applyPointerInputEvent(
+      this.inputController.pointerMove(event.pointerId, this.nativePointFromPointer(event)),
+    );
+  };
+
+  private handleNativePointerUp = (event: PointerEvent): void => {
+    event.preventDefault();
+    if (!event.isPrimary) return;
+    this.applyPointerInputEvent(
+      this.inputController.pointerUp(event.pointerId, this.nativePointFromPointer(event)),
+    );
+    this.releaseCapturedPointer();
+  };
+
+  private handleNativePointerCancel = (event: PointerEvent): void => {
+    event.preventDefault();
+    if (!event.isPrimary) return;
+    this.applyPointerInputEvent(this.inputController.pointerCancel(event.pointerId));
+    this.aimPoint = null;
+    this.releaseCapturedPointer();
+  };
 
   private handleCanvasFocus = (): void => {
     this.keyboardController.setFocused(true);
@@ -570,6 +634,18 @@ class TechnicalProbeScene extends Phaser.Scene {
 
   private handleShutdown = (): void => {
     this.input.keyboard?.off('keydown', this.handleKeyboardDown, this);
+    if (this.useNativePointerEvents) {
+      this.canvas.removeEventListener('pointerdown', this.handleNativePointerDown);
+      this.canvas.removeEventListener('pointermove', this.handleNativePointerMove);
+      this.canvas.removeEventListener('pointerup', this.handleNativePointerUp);
+      this.canvas.removeEventListener('pointercancel', this.handleNativePointerCancel);
+    } else {
+      this.input.off('pointerdown', this.handlePointerDown, this);
+      this.input.off('pointermove', this.handlePointerMove, this);
+      this.input.off('pointerup', this.handlePointerUp, this);
+      this.input.off('pointerupoutside', this.handlePointerUpOutside, this);
+      this.input.off('pointercancel', this.handlePointerCancel, this);
+    }
     this.canvas.removeEventListener('focus', this.handleCanvasFocus);
     this.canvas.removeEventListener('blur', this.handleCanvasBlur);
     this.canvas.removeEventListener('webglcontextlost', this.handleRenderContextLost);
