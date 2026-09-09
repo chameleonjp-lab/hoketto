@@ -36,6 +36,7 @@ import {
   type SystemLifecycleReason,
 } from './systemLifecycle';
 import { advanceFixedStepClock, createFixedStepClockState } from './fixedStepClock';
+import { getNativeClientPoint, mapClientPointToLogical } from './inputCoordinates';
 
 const WIDTH = STRAIGHT_BENCH_WIDTH;
 const HEIGHT = STRAIGHT_BENCH_HEIGHT;
@@ -128,6 +129,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     readonly height: number;
   } | null = null;
   private renderRecoveryTimer: number | null = null;
+  private capturedPointer: { readonly internalId: number; readonly nativeId: number } | null = null;
   private lastPlayerReadinessKey = '';
 
   public constructor(options: TechnicalProbeOptions = {}) {
@@ -153,6 +155,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.canvas.addEventListener('blur', this.handleCanvasBlur);
     this.canvas.addEventListener('webglcontextlost', this.handleRenderContextLost);
     this.canvas.addEventListener('webglcontextrestored', this.handleRenderContextRestored);
+    this.canvas.addEventListener('lostpointercapture', this.handleLostPointerCapture);
     this.attachSystemLifecycleListeners();
     this.events.once('shutdown', this.handleShutdown, this);
     this.graphics = this.add.graphics();
@@ -226,6 +229,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (this.inputController.getState().phase === 'AIMING' && !this.canAim()) {
       this.applyInputEvent(this.inputController.stateChanged('match-state-change'));
       this.aimPoint = null;
+      this.releaseCapturedPointer();
     }
     if (this.canAim() && this.inputController.getState().phase === 'CHARGING') {
       this.inputController.setCharging(false);
@@ -299,36 +303,83 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   private pointFromPointer(pointer: Phaser.Input.Pointer): Point {
-    return { x: pointer.x, y: pointer.y };
+    const nativePoint = getNativeClientPoint(pointer.event);
+    const mapped = nativePoint
+      ? mapClientPointToLogical(nativePoint, this.canvas.getBoundingClientRect(), WIDTH, HEIGHT)
+      : null;
+    return mapped ?? { x: pointer.x, y: pointer.y };
   }
 
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
     if (this.state.match.phase === 'RESULT' || this.state.match.phase === 'SUSPENDED') return;
-    this.applyInputEvent(
-      this.inputController.pointerDown(pointer.id, this.pointFromPointer(pointer)),
-    );
+    const event = this.inputController.pointerDown(pointer.id, this.pointFromPointer(pointer));
+    this.applyPointerInputEvent(event);
+    if (event.kind === 'aim-start') this.capturePointer(pointer);
   }
 
   private handlePointerMove(pointer: Phaser.Input.Pointer): void {
-    this.applyInputEvent(
+    this.applyPointerInputEvent(
       this.inputController.pointerMove(pointer.id, this.pointFromPointer(pointer)),
     );
   }
 
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
-    this.applyInputEvent(
+    this.applyPointerInputEvent(
       this.inputController.pointerUp(pointer.id, this.pointFromPointer(pointer)),
     );
+    this.releaseCapturedPointer();
   }
 
   private handlePointerUpOutside(pointer: Phaser.Input.Pointer): void {
-    this.applyInputEvent(this.inputController.pointerCancel(pointer.id, 'outside-input-area'));
+    this.applyPointerInputEvent(
+      this.inputController.pointerCancel(pointer.id, 'outside-input-area'),
+    );
     this.aimPoint = null;
+    this.releaseCapturedPointer();
   }
 
   private handlePointerCancel(pointer: Phaser.Input.Pointer): void {
-    this.applyInputEvent(this.inputController.pointerCancel(pointer.id));
+    this.applyPointerInputEvent(this.inputController.pointerCancel(pointer.id));
     this.aimPoint = null;
+    this.releaseCapturedPointer();
+  }
+
+  private capturePointer(pointer: Phaser.Input.Pointer): void {
+    const nativeId = Number.isFinite(pointer.pointerId) ? pointer.pointerId : pointer.id;
+    this.capturedPointer = { internalId: pointer.id, nativeId };
+    try {
+      this.canvas.setPointerCapture(nativeId);
+    } catch {
+      // A browser may reject capture after Phaser has left the native event.
+      // Phaser's pointerupoutside/pointercancel events remain the fallback.
+      this.capturedPointer = null;
+    }
+  }
+
+  private releaseCapturedPointer(): void {
+    const capturedPointer = this.capturedPointer;
+    this.capturedPointer = null;
+    if (!capturedPointer) return;
+    try {
+      if (this.canvas.hasPointerCapture(capturedPointer.nativeId)) {
+        this.canvas.releasePointerCapture(capturedPointer.nativeId);
+      }
+    } catch {
+      // Capture may already have been released by the browser.
+    }
+  }
+
+  private handleLostPointerCapture = (event: PointerEvent): void => {
+    const capturedPointer = this.capturedPointer;
+    if (!capturedPointer || capturedPointer.nativeId !== event.pointerId) return;
+    this.capturedPointer = null;
+    this.applyInputEvent(this.inputController.lostPointerCapture(capturedPointer.internalId));
+    this.aimPoint = null;
+  };
+
+  private applyPointerInputEvent(event: PointerInputEvent): void {
+    this.applyInputEvent(event);
+    if (event.kind === 'cancel' || event.kind === 'fire') this.releaseCapturedPointer();
   }
 
   private handleCanvasFocus = (): void => {
@@ -473,6 +524,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (this.state.match.phase === 'RESULT' || this.state.match.phase === 'INVALID') return;
     this.applyInputEvent(this.inputController.stateChanged(`system-${reason}`));
     this.aimPoint = null;
+    this.releaseCapturedPointer();
     this.state = suspendStraightBench(this.state, reason);
     this.fixedStepClock = createFixedStepClockState();
     this.keyboardController.setPaused(true);
@@ -489,6 +541,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     }
     this.applyInputEvent(this.inputController.stateChanged('performance-lag'));
     this.aimPoint = null;
+    this.releaseCapturedPointer();
     this.state = suspendStraightBench(this.state, 'lag');
     this.fixedStepClock = createFixedStepClockState();
     this.keyboardController.setPaused(true);
@@ -521,6 +574,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.canvas.removeEventListener('blur', this.handleCanvasBlur);
     this.canvas.removeEventListener('webglcontextlost', this.handleRenderContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this.handleRenderContextRestored);
+    this.canvas.removeEventListener('lostpointercapture', this.handleLostPointerCapture);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     window.removeEventListener('orientationchange', this.handleOrientationChange);
     window.removeEventListener('pagehide', this.handlePageHide);
@@ -541,6 +595,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (isAimKey && this.inputController.getState().phase === 'AIMING') {
       this.applyInputEvent(this.inputController.stateChanged('keyboard-input'));
       this.aimPoint = null;
+      this.releaseCapturedPointer();
     }
     const inputEvent = this.keyboardController.keyDown(event);
     if (inputEvent.kind !== 'ignored') event.preventDefault();
@@ -591,6 +646,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     }
     this.applyInputEvent(this.inputController.stateChanged('manual-pause'));
     this.aimPoint = null;
+    this.releaseCapturedPointer();
     this.state = suspendStraightBench(this.state, 'manual');
     this.fixedStepClock = createFixedStepClockState();
     this.keyboardController.setPaused(true);
