@@ -53,6 +53,7 @@ function requireElement<T extends Element>(selector: string): T {
 }
 
 const homeScreen = requireElement<HTMLElement>('#home-screen');
+const app = requireElement<HTMLElement>('#app');
 const homeProgressNote = requireElement<HTMLElement>('#home-progress-note');
 const tutorialScreen = requireElement<HTMLElement>('#tutorial-screen');
 const selectionScreen = requireElement<HTMLElement>('#selection-screen');
@@ -156,6 +157,7 @@ let resultShareNote = '';
 let homeShareNote = '';
 let playerName = loadPlayerName();
 let rankingLoadKey = '';
+let lastScreenFrame = '';
 
 interface RankingRow {
   readonly rank_no?: number;
@@ -393,7 +395,36 @@ function updateGameReadiness(readiness: TechnicalProbeReadiness): void {
   gameChargeProgress.setAttribute('aria-valuetext', presentation.ariaValueText);
 }
 
+function syncScreenFrame(): void {
+  const visibleScreen = settingsOpen ? 'SETTINGS' : flow.screen;
+  const screenChanged = lastScreenFrame !== visibleScreen;
+  const gameActive = visibleScreen === 'GAME';
+  const labelId =
+    visibleScreen === 'SETTINGS'
+      ? 'settings-title'
+      : visibleScreen === 'TUTORIAL'
+        ? 'tutorial-title'
+        : visibleScreen === 'SELECT'
+          ? 'selection-title'
+          : visibleScreen === 'GAME'
+            ? 'game-title'
+            : visibleScreen === 'RESULT'
+              ? 'result-title'
+              : 'page-title';
+  app.dataset.screen = visibleScreen;
+  app.setAttribute('aria-labelledby', labelId);
+  document.documentElement.classList.toggle('game-active', gameActive);
+  document.body.classList.toggle('game-active', gameActive);
+  if (screenChanged) {
+    // A previous long screen (home, selection, or result) may have left the
+    // document scrolled. Start every screen at its own top edge.
+    window.scrollTo(0, 0);
+    lastScreenFrame = visibleScreen;
+  }
+}
+
 function render(): void {
+  syncScreenFrame();
   renderPlayerNameState();
   homeScreen.hidden = settingsOpen || flow.screen !== 'HOME';
   tutorialScreen.hidden = settingsOpen || flow.screen !== 'TUTORIAL';

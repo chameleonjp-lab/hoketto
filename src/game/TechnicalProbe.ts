@@ -1148,8 +1148,12 @@ export function mountTechnicalProbe(
     backgroundColor: '#000000',
     scene: new TechnicalProbeScene(options),
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      // The DOM frame owns the responsive 9:16 size. Phaser must keep the
+      // logical 360x640 canvas unchanged; FIT plus a content-sized parent can
+      // otherwise resize the parent and canvas back and forth on Safari.
+      mode: Phaser.Scale.NONE,
+      autoCenter: Phaser.Scale.NO_CENTER,
+      expandParent: false,
     },
     render: {
       antialias: true,

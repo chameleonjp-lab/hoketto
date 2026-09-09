@@ -7,11 +7,13 @@
     <title>ホケット | P4 ゲーム性・操作改善</title>
   </head>
   <body>
-    <main id="app" aria-labelledby="page-title">
+    <main id="app" data-screen="HOME" aria-labelledby="page-title">
       <section class="shell">
-        <p class="eyebrow">P4 ゲーム性・操作改善</p>
-        <h1 id="page-title">ホケット</h1>
-        <p class="lead">弾で白いパックを動かし、相手ゴールへ入れる縦画面のブラウザゲームです。</p>
+        <header id="site-header" class="site-header">
+          <p class="eyebrow">P4 ゲーム性・操作改善</p>
+          <h1 id="page-title">ホケット</h1>
+          <p class="lead">弾で白いパックを動かし、相手ゴールへ入れる縦画面のブラウザゲームです。</p>
+        </header>
 
         <section id="home-screen" class="flow-panel" aria-labelledby="home-title">
           <p class="section-kicker">遊び方は3ステップ</p>
@@ -142,8 +144,8 @@
         </section>
 
         <section id="selection-screen" class="flow-panel" aria-labelledby="selection-title" hidden>
-          <p class="section-kicker">試合条件</p>
-          <h2 id="selection-title">盤面・CPU・遊び方を選ぶ</h2>
+          <p class="section-kicker">モード選択</p>
+          <h2 id="selection-title">遊ぶモードを選ぶ</h2>
           <p class="flow-copy">今すぐ遊べる条件には「開始できます」と表示しています。</p>
 
           <fieldset class="selection-group">
@@ -234,7 +236,10 @@
             </div>
           </div>
           <div class="game-quick-status">
-            <p class="game-quick-goal">下から弾を撃つ → 白いパックを動かす → 上の赤いゴールへ</p>
+            <p class="game-quick-goal">
+              <strong>勝ち方</strong> 下から弾を撃つ → 白いパックを動かす → 上の赤いゴールへ
+              <small>押して狙い、指を離して撃つ</small>
+            </p>
             <section
               id="game-readiness"
               class="game-readiness"

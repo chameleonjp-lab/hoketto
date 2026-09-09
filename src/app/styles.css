@@ -18,10 +18,15 @@
 
 html,
 body {
+  width: 100%;
   min-width: 320px;
   min-height: 100%;
   margin: 0;
   overflow-x: hidden;
+}
+
+html {
+  background: #0b1020;
 }
 
 body {
@@ -1044,5 +1049,214 @@ h2 {
 
   .game-root {
     width: min(100%, 360px);
+  }
+}
+
+/*
+ * The match is a fixed viewport, not another document section. Phaser keeps
+ * the logical 360x640 canvas while this frame scales it without changing its
+ * aspect ratio. Keeping both dimensions explicit avoids a parent/canvas
+ * resize loop, which previously made the page appear to shake.
+ */
+html.game-active,
+body.game-active {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.game-active {
+  height: 100svh;
+  min-height: 100svh;
+}
+
+#app {
+  min-height: 100svh;
+}
+
+#app[data-screen='GAME'] {
+  width: 100%;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+#app[data-screen='GAME'] > .shell {
+  display: flex;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+}
+
+#app[data-screen='GAME'] .site-header {
+  display: none;
+}
+
+#app[data-screen='GAME'] .game-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  margin: 0;
+  padding: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #0b1020;
+  box-shadow: none;
+}
+
+#app[data-screen='GAME'] .game-header {
+  min-height: 48px;
+  flex: 0 0 auto;
+}
+
+#app[data-screen='GAME'] .game-quick-status {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
+  gap: 8px;
+  flex: 0 0 auto;
+  margin: 8px 0;
+}
+
+#app[data-screen='GAME'] .game-quick-goal {
+  display: grid;
+  align-content: center;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.game-quick-goal strong {
+  color: #b9fff4;
+}
+
+.game-quick-goal small {
+  display: block;
+  margin-top: 2px;
+  color: #b9fff4;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+#app[data-screen='GAME'] .game-readiness {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+#app[data-screen='GAME'] .readiness-heading {
+  min-width: 0;
+}
+
+#app[data-screen='GAME'] #game-readiness-label {
+  font-size: 1rem;
+}
+
+#app[data-screen='GAME'] .game-readiness progress {
+  min-width: 0;
+  height: 14px;
+}
+
+#app[data-screen='GAME'] .readiness-detail {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#app[data-screen='GAME'] .game-layout {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+#app[data-screen='GAME'] .game-stage {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#app[data-screen='GAME'] .game-root {
+  width: auto;
+  height: min(640px, calc(100svh - 160px));
+  min-height: 0;
+  max-width: 100%;
+  aspect-ratio: 9 / 16;
+  margin: 0;
+}
+
+#app[data-screen='GAME'] .game-root canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  max-height: none;
+}
+
+#app[data-screen='GAME'] .caption {
+  display: none;
+}
+
+#app[data-screen='GAME'] .game-guide {
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+}
+
+/* Mobile players need the board first and the guide out of the way. The
+ * concise goal line and readiness card remain above the board. */
+@media (max-width: 720px) and (pointer: coarse) {
+  #app[data-screen='GAME'] .game-panel {
+    padding: 6px;
+  }
+
+  #app[data-screen='GAME'] .game-quick-status {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin: 6px 0;
+  }
+
+  #app[data-screen='GAME'] .game-quick-goal {
+    text-align: left;
+  }
+
+  #app[data-screen='GAME'] .game-readiness {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  #app[data-screen='GAME'] .game-layout {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  #app[data-screen='GAME'] .game-stage {
+    width: 100%;
+  }
+
+  #app[data-screen='GAME'] .game-root {
+    height: min(640px, calc(100svh - 174px));
+  }
+
+  #app[data-screen='GAME'] .game-guide {
+    display: none;
   }
 }

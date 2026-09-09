@@ -12,6 +12,7 @@ async function startTrial(page: Page): Promise<void> {
   await page.locator('#mode-trial').click();
   await page.locator('#selection-start').click();
   await expect(page.locator('#game-screen')).toBeVisible();
+  await expect(page.locator('#app')).toHaveAttribute('data-screen', 'GAME');
   await expect(page.locator('#game-root canvas')).toBeVisible();
 }
 
@@ -32,6 +33,22 @@ test.describe('ホケットのブラウザ導線', () => {
     await expect(page.locator('#game-mobile-controls')).toBeHidden();
     await expect(page.locator('#game-root')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
     await expect(page.locator('#game-live-status')).toHaveText(/試合開始/);
+
+    const viewportState = await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>('#game-root')?.getBoundingClientRect();
+      return {
+        bodyOverflow: getComputedStyle(document.body).overflow,
+        documentOverflow: getComputedStyle(document.documentElement).overflow,
+        scrollHeight: document.documentElement.scrollHeight,
+        clientHeight: document.documentElement.clientHeight,
+        boardRatio: root ? root.width / root.height : 0,
+      };
+    });
+    expect(viewportState.bodyOverflow).toBe('hidden');
+    expect(viewportState.documentOverflow).toBe('hidden');
+    expect(viewportState.scrollHeight).toBeLessThanOrEqual(viewportState.clientHeight + 2);
+    expect(viewportState.boardRatio).toBeGreaterThan(0.54);
+    expect(viewportState.boardRatio).toBeLessThan(0.59);
 
     await page.locator('#game-pause').click();
     await expect(page.locator('#game-live-status')).toHaveText(/一時停止/);
@@ -72,6 +89,7 @@ test.describe('ホケットのブラウザ導線', () => {
     await page.locator('#home-button').click();
     await expect(page.locator('#home-screen')).toBeVisible();
     await expect(page.locator('#game-screen')).toBeHidden();
+    await expect(page.locator('#app')).toHaveAttribute('data-screen', 'HOME');
   });
 
   test('画面非表示から戻っても、条件復帰だけでは自動再開しない', async ({ page }) => {
