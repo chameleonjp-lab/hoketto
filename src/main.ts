@@ -67,6 +67,7 @@ const gameReadinessPanel = requireElement<HTMLElement>('#game-readiness');
 const gameReadinessLabel = requireElement<HTMLElement>('#game-readiness-label');
 const gameReadinessDetail = requireElement<HTMLElement>('#game-readiness-detail');
 const gameChargeProgress = requireElement<HTMLProgressElement>('#game-charge-progress');
+const gameChargePercent = requireElement<HTMLElement>('#game-charge-percent');
 const gamePauseButton = requireElement<HTMLButtonElement>('#game-pause');
 const settingsScreen = requireElement<HTMLElement>('#settings-screen');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
@@ -386,6 +387,9 @@ function updateGameReadiness(readiness: TechnicalProbeReadiness): void {
   gameReadinessLabel.textContent = presentation.title;
   gameReadinessDetail.textContent = presentation.detail;
   gameChargeProgress.value = presentation.progress;
+  gameChargePercent.textContent =
+    presentation.progress >= 100 ? '満タン（100%）' : `充電 ${presentation.progress}%`;
+  gameChargePercent.setAttribute('aria-label', `充電${presentation.progress}パーセント`);
   gameChargeProgress.setAttribute('aria-valuetext', presentation.ariaValueText);
 }
 
