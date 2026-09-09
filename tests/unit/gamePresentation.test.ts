@@ -35,8 +35,23 @@ describe('game presentation', () => {
         touchPoints: 0,
       }),
     ).toBe('desktop');
+    expect(
+      detectDeviceMode({
+        coarsePointer: true,
+        finePointer: true,
+        touchPoints: 5,
+      }),
+    ).toBe('hybrid');
+    expect(
+      detectDeviceMode({
+        coarsePointer: true,
+        finePointer: true,
+        touchPoints: 0,
+      }),
+    ).toBe('desktop');
     expect(deviceModeLabel('touch')).toBe('スマホ操作');
     expect(deviceModeLabel('desktop')).toBe('PC操作');
+    expect(deviceModeLabel('hybrid')).toBe('タッチ／PC操作');
   });
 
   it('充電完了は発射可能、充電中は残り時間とゲージ割合を文字でも示す', () => {
