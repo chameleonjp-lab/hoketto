@@ -422,10 +422,40 @@ h2 {
   line-height: 1.35;
 }
 
-.game-guide {
+.game-quick-status {
   display: grid;
   gap: 12px;
   margin: 20px 0 16px;
+}
+
+.game-quick-goal {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #35d6c2;
+  border-radius: 10px;
+  background: #0b2e2c;
+  color: #f6f8ff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.game-stage,
+.game-guide {
+  min-width: 0;
+}
+
+.game-guide {
+  display: grid;
+  gap: 12px;
 }
 
 .game-goal-card,
@@ -560,15 +590,50 @@ h2 {
   display: block;
   width: 100%;
   height: 18px;
+  appearance: none;
+  border: 1px solid #496483;
+  border-radius: 999px;
+  background: #07151d;
   accent-color: #35d6c2;
+}
+
+.game-readiness progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: #07151d;
+}
+
+.game-readiness progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: #35d6c2;
+}
+
+.game-readiness progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: #35d6c2;
 }
 
 .game-readiness[data-state='charging'] progress {
   accent-color: #ffd34e;
 }
 
+.game-readiness[data-state='charging'] progress::-webkit-progress-value,
+.game-readiness[data-state='charging'] progress::-moz-progress-bar {
+  background: #ffd34e;
+}
+
 .game-readiness[data-state='stopped'] progress {
   accent-color: #7183a5;
+}
+
+.game-readiness[data-state='stopped'] progress::-webkit-progress-value,
+.game-readiness[data-state='stopped'] progress::-moz-progress-bar {
+  background: #7183a5;
+}
+
+.readiness-percent {
+  color: #f6f8ff;
+  font-size: 0.92rem;
+  font-weight: 800;
 }
 
 .game-controls {
@@ -915,6 +980,10 @@ h2 {
   display: block;
   width: 100% !important;
   height: auto !important;
+  max-width: 100%;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .caption {
@@ -961,5 +1030,19 @@ h2 {
   .selection-grid,
   .selection-grid-compact {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .game-stage {
+    order: -1;
+  }
+
+  .game-root {
+    width: min(100%, 360px);
   }
 }
