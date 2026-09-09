@@ -23,6 +23,7 @@ test.describe('ホケットのブラウザ導線', () => {
     await expect(page.locator('#game-goal-title')).toContainText('白いパック');
     await expect(page.locator('#game-readiness-label')).toHaveText('撃てます');
     await expect(page.locator('#game-readiness-detail')).toContainText('ゲージが満ちています');
+    await expect(page.locator('#game-charge-percent')).toHaveText('満タン（100%）');
     await expect(page.locator('#game-charge-progress')).toHaveAttribute(
       'aria-valuetext',
       '充電完了。今すぐ発射できます。',
@@ -34,6 +35,27 @@ test.describe('ホケットのブラウザ導線', () => {
 
     await page.locator('#game-pause').click();
     await expect(page.locator('#game-live-status')).toHaveText(/一時停止/);
+  });
+
+  test('縮尺された盤面を押して離すと1発だけ発射できる', async ({ page }) => {
+    await startTrial(page);
+    const canvas = page.locator('#game-root canvas');
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.78);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.62, box.y + box.height * 0.62);
+    await page.mouse.up();
+
+    await expect(page.locator('#game-root')).toHaveAttribute('data-player-shot-count', '1', {
+      timeout: 1_000,
+    });
+    await expect(page.locator('#game-readiness-label')).toHaveText('充電中', {
+      timeout: 500,
+    });
+    await expect(page.locator('#game-charge-percent')).toHaveText(/充電 \d+%/);
   });
 
   test('ホームから試合へ入り、手動停止と明示再開を完了できる', async ({ page }) => {

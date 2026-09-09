@@ -67,6 +67,7 @@ const gameReadinessPanel = requireElement<HTMLElement>('#game-readiness');
 const gameReadinessLabel = requireElement<HTMLElement>('#game-readiness-label');
 const gameReadinessDetail = requireElement<HTMLElement>('#game-readiness-detail');
 const gameChargeProgress = requireElement<HTMLProgressElement>('#game-charge-progress');
+const gameChargePercent = requireElement<HTMLElement>('#game-charge-percent');
 const gamePauseButton = requireElement<HTMLButtonElement>('#game-pause');
 const settingsScreen = requireElement<HTMLElement>('#settings-screen');
 const tutorialStepLabel = requireElement<HTMLElement>('#tutorial-step-label');
@@ -386,6 +387,9 @@ function updateGameReadiness(readiness: TechnicalProbeReadiness): void {
   gameReadinessLabel.textContent = presentation.title;
   gameReadinessDetail.textContent = presentation.detail;
   gameChargeProgress.value = presentation.progress;
+  gameChargePercent.textContent =
+    presentation.progress >= 100 ? '満タン（100%）' : `充電 ${presentation.progress}%`;
+  gameChargePercent.setAttribute('aria-label', `充電${presentation.progress}パーセント`);
   gameChargeProgress.setAttribute('aria-valuetext', presentation.ariaValueText);
 }
 
@@ -549,6 +553,7 @@ function enterGame(seed = nextSeed): void {
   nextSeed = seed + 1;
   flow = startGame(flow);
   render();
+  gameRoot.dataset.playerShotCount = '0';
   updateGameLiveStatus('試合開始。下から弾を撃ち、白いパックを上の相手ゴールへ入れます。');
   if (!game) {
     game = mountTechnicalProbe(gameRoot, {
@@ -565,6 +570,8 @@ function enterGame(seed = nextSeed): void {
       onShot: (owner) => {
         soundController.playShot(owner);
         if (owner === 'player') {
+          const shotCount = Number(gameRoot.dataset.playerShotCount ?? '0');
+          gameRoot.dataset.playerShotCount = String(Number.isFinite(shotCount) ? shotCount + 1 : 1);
           updateGameLiveStatus(
             '自分が弾を発射しました。上の充電ゲージが満ちるまで次の一発は撃てません。',
           );

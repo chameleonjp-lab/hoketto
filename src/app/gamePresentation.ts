@@ -1,6 +1,6 @@
 import type { TurretReadiness } from '../game/straightBench';
 
-export type DeviceMode = 'touch' | 'desktop' | 'unknown';
+export type DeviceMode = 'touch' | 'desktop' | 'hybrid' | 'unknown';
 
 export interface DeviceSignals {
   readonly coarsePointer: boolean;
@@ -17,11 +17,12 @@ export interface ReadinessPresentation {
 }
 
 export function detectDeviceMode(signals: DeviceSignals): DeviceMode {
-  if (signals.coarsePointer || (!signals.finePointer && signals.touchPoints > 0)) {
-    return 'touch';
+  if (signals.coarsePointer && signals.finePointer && signals.touchPoints > 0) {
+    return 'hybrid';
   }
-  if (signals.finePointer || signals.touchPoints === 0) return 'desktop';
-  return 'unknown';
+  if (signals.finePointer) return 'desktop';
+  if (signals.coarsePointer || signals.touchPoints > 0) return 'touch';
+  return signals.touchPoints === 0 ? 'desktop' : 'unknown';
 }
 
 export function getReadinessPresentation(
@@ -61,5 +62,6 @@ export function getReadinessPresentation(
 export function deviceModeLabel(mode: DeviceMode): string {
   if (mode === 'touch') return 'スマホ操作';
   if (mode === 'desktop') return 'PC操作';
+  if (mode === 'hybrid') return 'タッチ／PC操作';
   return '操作方法';
 }
