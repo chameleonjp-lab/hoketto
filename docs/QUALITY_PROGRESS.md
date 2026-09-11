@@ -89,4 +89,4 @@
 - 反射板・壁での弾の反射／接触、パックの反射、発射可能への復帰を検出し、既存のWeb Audioへ短い効果音を追加した。音声が使えない場合は画面だけで続けられる。
 - `prefers-reduced-motion` が有効な端末では、輪と火花の時間を短くして情報だけを残す。エフェクトは同時32件を上限とし、画面を揺らさない。
 
-単体検査は18ファイル161件、format/lint/typecheck/buildは成功した。発射・命中・壁反射・反射板反射・得点・充電完了の表示用出来事は `tests/unit/feedback.test.ts` で確認した。Playwrightのローカル実行はブラウザ本体がないため未確認だが、CIで3ブラウザーの導線検査を行う。iPhone 17 Pro Safariでの見え方、音量、長時間再生は未確認として残す。
+単体検査は18ファイル161件、format/lint/typecheck/buildは成功した。発射・命中・壁反射・反射板反射・得点・充電完了の表示用出来事は `tests/unit/feedback.test.ts` で確認した。Playwrightのローカル実行はブラウザ本体がないため未確認だが、CI #478でChromium／WebKit／Firefoxの導線検査が成功した。iPhone 17 Pro Safariでの見え方、音量、長時間再生は未確認として残す。

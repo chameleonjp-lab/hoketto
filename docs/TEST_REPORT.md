@@ -29,7 +29,7 @@
 | 端末別操作案内                   | 通過 | `tests/unit/gamePresentation.test.ts`、CI #411、スマホ／PCの案内切替を確認した                                             |
 | 充電状態の文字・ゲージ表示       | 通過 | `tests/unit/gamePresentation.test.ts`・`tests/browser/flow.spec.ts`、CI #411、撃てます／充電中／停止中と残り時間を確認した |
 | 黒基調のゲーム盤面               | 通過 | `tests/browser/flow.spec.ts`、CI #411、ゲーム盤面の背景色と明るい物体の表示を確認した                                      |
-| 発射・命中・反射・得点の因果表示 | 通過 | `tests/unit/feedback.test.ts`、弾とパックの軌跡、命中輪、反射火花、ゴール輪へつながる表示用出来事を確認                    |
+| 発射・命中・反射・得点の因果表示 | 通過 | `tests/unit/feedback.test.ts`、CI #478。弾とパックの軌跡、命中輪、反射火花、ゴール輪へつながる表示用出来事を確認           |
 | ストレート試合                   | 通過 | `tests/unit/straightBench.test.ts`、発射待ち・命中・上下ゴール・結果を確認                                                 |
 | ツイン・ブロック物理・盤面       | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の消滅、パック反射を確認                         |
 | リフレクト・レーン物理・盤面     | 通過 | `tests/unit/boardValidator.test.ts`・`straightBench.test.ts`、対称配置、弾の1回反射、パック反射を確認                      |
