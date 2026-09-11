@@ -44,6 +44,41 @@ describe('straight bench simulation', () => {
     expect(state.pucks).toHaveLength(1);
   });
 
+  it('射撃場はCPUと時計を止めたまま、通常と同じ弾・パック物理を使う', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice', 'straight-bench', true);
+    const fired = firePlayerShot(initial, { x: 180, y: 320 });
+    const progressed = stepStraightBench(fired, 40);
+
+    expect(initial.training).toBe(true);
+    expect(progressed.match.phase).toBe('PLAYING');
+    expect(progressed.match.tick).toBe(0);
+    expect(progressed.match.ticksRemaining).toBe(90 * 120);
+    expect(progressed.bullets.some((bullet) => bullet.owner === 'cpu')).toBe(false);
+    expect(progressed.pucks[0]?.velocity.y).toBeLessThan(0);
+    expect(getCpuTurretReadiness(progressed)).toBe('stopped');
+  });
+
+  it('射撃場は時間切れにならず、外した後も次の一発を試せる', () => {
+    const initial = createStraightBenchState(20260814, 1, 'practice', 'straight-bench', true);
+    const missed = firePlayerShot(initial, { x: 40, y: 320 });
+    const afterLifetime = stepStraightBench(missed, 1 * 120 + SHOT_COOLDOWN_TICKS);
+
+    expect(afterLifetime.match.phase).toBe('PLAYING');
+    expect(afterLifetime.match.ticksRemaining).toBe(120);
+    expect(afterLifetime.bullets).toHaveLength(0);
+    expect(getPlayerTurretReadiness(afterLifetime)).toBe('ready');
+  });
+
+  it('射撃場を作り直しても、時計停止とCPU停止を保つ', () => {
+    const initial = createStraightBenchState(20260814, 90, 'practice', 'straight-bench', true);
+    const result = { ...initial, match: { ...initial.match, phase: 'RESULT' as const } };
+    const rematch = createStraightBenchRematch(result);
+
+    expect(rematch.training).toBe(true);
+    expect(rematch.match.ticksRemaining).toBe(90 * 120);
+    expect(getCpuTurretReadiness(rematch)).toBe('stopped');
+  });
+
   it('手動停止中は時計と物理を止め、明示再開後に3秒数える', () => {
     const progressed = stepStraightBench(createStraightBenchState(20260814), 30);
     const suspended = suspendStraightBench(progressed);

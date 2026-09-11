@@ -69,8 +69,11 @@ export interface TechnicalProbeOptions {
   readonly durationSeconds?: number;
   readonly difficulty?: CpuDifficulty;
   readonly board?: PlayableBoardId;
+  /** CPUと時計を止め、同じ物理だけを使う射撃場として起動する。 */
+  readonly training?: boolean;
   readonly onResult?: (result: TechnicalProbeResult) => void;
   readonly onShot?: (owner: 'player' | 'cpu') => void;
+  readonly onPuckHit?: (owner: 'player' | 'cpu', puckId: number, position: Point) => void;
   readonly onGoal?: (
     team: 'player' | 'cpu',
     scores: { readonly playerScore: number; readonly cpuScore: number },
@@ -141,6 +144,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       options.durationSeconds ?? MATCH_SECONDS,
       options.difficulty ?? 'practice',
       options.board ?? 'straight-bench',
+      options.training ?? false,
     );
   }
 
@@ -285,6 +289,42 @@ class TechnicalProbeScene extends Phaser.Scene {
     const previous = this.state;
     const previousBulletIds = new Set(previous.bullets.map((bullet) => bullet.id));
     this.state = stepStraightBench(previous, 1);
+
+    // The pure physics layer intentionally returns only the next state. For
+    // the presentation layer, a removed bullet plus a nearby puck velocity
+    // change is enough to identify a hit without changing the match rules.
+    const nextPuckById = new Map(this.state.pucks.map((puck) => [puck.id, puck]));
+    for (const bullet of previous.bullets) {
+      if (
+        previousBulletIds.has(bullet.id) &&
+        this.state.bullets.some((item) => item.id === bullet.id)
+      ) {
+        continue;
+      }
+      let bestImpact: {
+        readonly puckId: number;
+        readonly position: Point;
+        readonly delta: number;
+      } | null = null;
+      for (const previousPuck of previous.pucks) {
+        if (!previousPuck.active) continue;
+        const nextPuck = nextPuckById.get(previousPuck.id);
+        if (!nextPuck) continue;
+        const distance = Math.hypot(
+          bullet.position.x - previousPuck.position.x,
+          bullet.position.y - previousPuck.position.y,
+        );
+        if (distance > 48) continue;
+        const delta = Math.hypot(
+          nextPuck.velocity.x - previousPuck.velocity.x,
+          nextPuck.velocity.y - previousPuck.velocity.y,
+        );
+        if (delta < 40 || (bestImpact !== null && bestImpact.delta >= delta)) continue;
+        bestImpact = { puckId: previousPuck.id, position: nextPuck.position, delta };
+      }
+      if (bestImpact)
+        this.options.onPuckHit?.(bullet.owner, bestImpact.puckId, bestImpact.position);
+    }
 
     let observedCpuShot = false;
     for (const bullet of this.state.bullets) {

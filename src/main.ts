@@ -17,6 +17,7 @@ import {
   showResult,
   skipTutorial,
   startRematch,
+  startPractice,
   startTutorialAction,
   startGame,
   type BoardId,
@@ -58,9 +59,14 @@ const homeProgressNote = requireElement<HTMLElement>('#home-progress-note');
 const tutorialScreen = requireElement<HTMLElement>('#tutorial-screen');
 const selectionScreen = requireElement<HTMLElement>('#selection-screen');
 const gameScreen = requireElement<HTMLElement>('#game-screen');
+const gameTitle = requireElement<HTMLElement>('#game-title');
 const gameBoardLabel = requireElement<HTMLElement>('#game-board-label');
 const gameRoot = requireElement<HTMLElement>('#game-root');
 const gameLiveStatus = requireElement<HTMLElement>('#game-live-status');
+const gameInstructions = requireElement<HTMLElement>('#game-instructions');
+const gameTrainingStatus = requireElement<HTMLElement>('#game-training-status');
+const gameTrainingActions = requireElement<HTMLElement>('#game-training-actions');
+const gameTrainingFinishButton = requireElement<HTMLButtonElement>('#game-training-finish');
 const gameDeviceLabel = requireElement<HTMLElement>('#game-device-label');
 const gameMobileControls = requireElement<HTMLElement>('#game-mobile-controls');
 const gameDesktopControls = requireElement<HTMLElement>('#game-desktop-controls');
@@ -77,6 +83,7 @@ const tutorialBody = requireElement<HTMLElement>('#tutorial-body');
 const tutorialFeedback = requireElement<HTMLElement>('#tutorial-feedback');
 const tutorialTarget = requireElement<HTMLButtonElement>('#tutorial-target');
 const tutorialChargeRing = requireElement<HTMLElement>('#tutorial-charge-ring');
+const tutorialPracticeButton = requireElement<HTMLButtonElement>('#tutorial-practice');
 const playButton = requireElement<HTMLButtonElement>('#play-button');
 const settingsButton = requireElement<HTMLButtonElement>('#settings-button');
 const settingsEffects = requireElement<HTMLInputElement>('#settings-effects');
@@ -123,6 +130,10 @@ const CLIENT_VERSION = 'hoketto-2026-09-08-physics-2';
 
 let flow: AppFlowState = createAppFlowState();
 let game: ReturnType<typeof mountTechnicalProbe> | null = null;
+type GameSessionKind = 'match' | 'training';
+type TrainingStep = 'aim' | 'score' | 'complete';
+let sessionKind: GameSessionKind = 'match';
+let trainingStep: TrainingStep = 'aim';
 const soundController = new SoundController();
 const loadedAudioSettings = loadAudioSettings();
 soundController.applySettings(loadedAudioSettings.settings);
@@ -435,6 +446,24 @@ function render(): void {
   if (flow.screen !== 'RESULT') resetResultButtons();
   renderDeviceControls();
 
+  const training = sessionKind === 'training' && flow.screen === 'GAME';
+  app.dataset.session = training ? 'TRAINING' : 'MATCH';
+  gameTitle.textContent = training ? '射撃場' : '試合';
+  gameBoardLabel.textContent = training ? '基本練習' : boardLabel(flow.selection.board);
+  gameInstructions.textContent = training
+    ? '白いパックへ弾を当てて動かし、上の赤いゴールへ入れてください。外れても何度でも試せます。'
+    : '得点が多い方が勝ち。1回撃った後は、下の充電ゲージが満ちるまで待ちます。';
+  gameTrainingStatus.hidden = !training;
+  gameTrainingStatus.textContent = training
+    ? trainingStep === 'complete'
+      ? '練習完了。実際の物理で、命中と得点を確認できました。'
+      : trainingStep === 'score'
+        ? '命中しました。パックを上の赤いゴールへ入れて得点してみましょう。'
+        : '白いパックを狙って撃ってください。弾を撃った後は、充電が戻るまで待ちます。'
+    : '';
+  gameTrainingFinishButton.hidden = !training || trainingStep !== 'complete';
+  gameTrainingActions.hidden = !training || trainingStep !== 'complete';
+
   settingsEffects.checked = soundController.areEffectsEnabled;
   settingsMusic.checked = soundController.isMusicEnabled;
   const audioSupportNote = soundController.isSupported
@@ -575,28 +604,38 @@ function render(): void {
   }
 }
 
-function enterGame(seed = nextSeed): void {
+function enterGame(seed = nextSeed, kind: GameSessionKind = 'match'): void {
   if (!playerName) {
     playerNameNote.textContent = 'プレイヤー名を入力してください。';
     playerNameInput.focus();
     return;
   }
   nextSeed = seed + 1;
-  flow = startGame(flow);
+  sessionKind = kind;
+  trainingStep = 'aim';
+  flow = kind === 'training' ? startPractice(flow) : startGame(flow);
+  if (flow.screen !== 'GAME') return;
   render();
   gameRoot.dataset.playerShotCount = '0';
-  updateGameLiveStatus('試合開始。下から弾を撃ち、白いパックを上の相手ゴールへ入れます。');
+  updateGameLiveStatus(
+    kind === 'training'
+      ? '射撃場を開始しました。白いパックを狙って撃ってください。'
+      : '試合開始。下から弾を撃ち、白いパックを上の相手ゴールへ入れます。',
+  );
   if (!game) {
     game = mountTechnicalProbe(gameRoot, {
       seed,
-      durationSeconds: flow.selection.mode === 'trial' ? 30 : 90,
+      durationSeconds: kind === 'training' ? 90 : flow.selection.mode === 'trial' ? 30 : 90,
       difficulty: flow.selection.difficulty,
       board:
-        flow.selection.board === 'twin-block'
-          ? 'twin-block'
-          : flow.selection.board === 'ricochet-lane'
-            ? 'ricochet-lane'
-            : 'straight-bench',
+        kind === 'training'
+          ? 'straight-bench'
+          : flow.selection.board === 'twin-block'
+            ? 'twin-block'
+            : flow.selection.board === 'ricochet-lane'
+              ? 'ricochet-lane'
+              : 'straight-bench',
+      training: kind === 'training',
       onResult: handleGameResult,
       onShot: (owner) => {
         soundController.playShot(owner);
@@ -604,13 +643,28 @@ function enterGame(seed = nextSeed): void {
           const shotCount = Number(gameRoot.dataset.playerShotCount ?? '0');
           gameRoot.dataset.playerShotCount = String(Number.isFinite(shotCount) ? shotCount + 1 : 1);
           updateGameLiveStatus(
-            '自分が弾を発射しました。上の充電ゲージが満ちるまで次の一発は撃てません。',
+            kind === 'training'
+              ? '弾を撃ちました。白いパックに当たると動きます。'
+              : '自分が弾を発射しました。上の充電ゲージが満ちるまで次の一発は撃てません。',
           );
         }
+      },
+      onPuckHit: (owner) => {
+        if (kind !== 'training' || owner !== 'player' || trainingStep !== 'aim') return;
+        trainingStep = 'score';
+        render();
+        updateGameLiveStatus('命中しました。上の赤いゴールへ入れて得点してみましょう。');
       },
       onReadinessChange: updateGameReadiness,
       onGoal: (team, scores) => {
         soundController.playGoal(team);
+        if (kind === 'training' && team === 'player') {
+          trainingStep = 'complete';
+          render();
+          updateGameLiveStatus('練習完了。実際の物理で命中と得点を確認できました。');
+          gameTrainingFinishButton.focus();
+          return;
+        }
         const side = team === 'player' ? '自分' : '相手';
         updateGameLiveStatus(
           `${side}が得点しました。現在、自分 ${scores.playerScore}、相手 ${scores.cpuScore}。`,
@@ -622,6 +676,7 @@ function enterGame(seed = nextSeed): void {
 }
 
 function enterSelection(): void {
+  sessionKind = 'match';
   flow = openSelection(flow);
   render();
   selectionStartButton.focus();
@@ -634,6 +689,7 @@ function disposeGame(): void {
 }
 
 function handleGameResult(result: TechnicalProbeResult): void {
+  sessionKind = 'match';
   updateGameLiveStatus(`試合終了。自分 ${result.playerScore}、相手 ${result.cpuScore}。`);
   disposeGame();
   const completedResult = { ...result, selection: flow.selection };
@@ -717,6 +773,10 @@ tutorialButton.addEventListener('click', () => {
   flow = openTutorial(flow);
   render();
   tutorialTarget.focus();
+});
+
+tutorialPracticeButton.addEventListener('click', () => {
+  enterGame(nextSeed, 'training');
 });
 
 function finishTutorialAction(): void {
@@ -837,9 +897,19 @@ selectionBackButton.addEventListener('click', () => {
 
 homeButton.addEventListener('click', () => {
   disposeGame();
+  sessionKind = 'match';
   flow = returnHome();
   render();
   playButton.focus();
+});
+
+gameTrainingFinishButton.addEventListener('click', () => {
+  if (sessionKind !== 'training' || trainingStep !== 'complete') return;
+  disposeGame();
+  sessionKind = 'match';
+  flow = openSelection(flow);
+  render();
+  selectionStartButton.focus();
 });
 
 resultRematchButton.addEventListener('click', () => {
@@ -880,6 +950,7 @@ resultShareButton.addEventListener('click', async () => {
 
 resultHomeButton.addEventListener('click', () => {
   disposeGame();
+  sessionKind = 'match';
   flow = returnHome();
   render();
   playButton.focus();

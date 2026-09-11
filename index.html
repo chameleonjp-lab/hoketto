@@ -140,6 +140,9 @@
             <button id="tutorial-skip" class="secondary-action" type="button">
               説明を飛ばして遊ぶ
             </button>
+            <button id="tutorial-practice" class="secondary-action" type="button">
+              射撃場を試す
+            </button>
           </div>
         </section>
 
@@ -240,6 +243,13 @@
               <strong>勝ち方</strong> 下から弾を撃つ → 白いパックを動かす → 上の赤いゴールへ
               <small>押して狙い、指を離して撃つ</small>
             </p>
+            <p
+              id="game-training-status"
+              class="training-status"
+              role="status"
+              aria-live="polite"
+              hidden
+            ></p>
             <section
               id="game-readiness"
               class="game-readiness"
@@ -318,6 +328,11 @@
                 <span><i class="legend-line legend-goal"></i>赤い線：相手ゴール</span>
               </div>
             </div>
+          </div>
+          <div id="game-training-actions" class="training-actions" hidden>
+            <button id="game-training-finish" class="primary-action" type="button" hidden>
+              練習を終えて条件を選ぶ
+            </button>
           </div>
           <p
             id="game-live-status"
