@@ -15,6 +15,7 @@ import {
   showResult,
   skipTutorial,
   startRematch,
+  startPractice,
   startGame,
   startTutorialAction,
 } from '../../src/app/gameFlow';
@@ -134,6 +135,7 @@ describe('application flow', () => {
     expect(startGame(home)).toBe(home);
     expect(nextTutorial(home)).toBe(home);
     expect(skipTutorial(home)).toBe(home);
+    expect(startPractice(home)).toBe(home);
     expect(returnHome()).toEqual({
       screen: 'HOME',
       tutorialStep: 0,
@@ -142,6 +144,15 @@ describe('application flow', () => {
       selection: { board: 'straight-bench', difficulty: 'practice', mode: 'match' },
       result: null,
     });
+  });
+
+  it('基本説明から、同じ物理を使う射撃場へ移れる', () => {
+    const tutorial = openTutorial(createAppFlowState());
+    const practice = startPractice(tutorial);
+
+    expect(practice.screen).toBe('GAME');
+    expect(practice.result).toBeNull();
+    expect(startPractice(practice)).toBe(practice);
   });
 
   it('選択画面では開始可能な条件を判定し、選択を結果まで保持する', () => {

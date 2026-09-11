@@ -97,6 +97,8 @@ export interface StraightBenchState {
   readonly durationSeconds: number;
   readonly board: PlayableBoardId;
   readonly difficulty: CpuDifficulty;
+  /** 射撃場では時計・CPU・終盤イベントを動かさず、同じ物理だけを使う。 */
+  readonly training?: boolean;
   readonly match: MatchState;
   readonly pucks: readonly PuckState[];
   readonly core: CoreState;
@@ -565,18 +567,25 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
   const cooldownTicks = Math.max(0, state.cooldownTicks - 1);
   const cpuCooldownTicks = Math.max(0, state.cpuCooldownTicks - 1);
   const cpuThinkTicks = Math.max(0, state.cpuThinkTicks - 1);
-  const clockedMatch = advanceClock(state.match, 1);
+  const clockedMatch = state.training ? state.match : advanceClock(state.match, 1);
   const preparedState: StraightBenchState = {
     ...state,
     cooldownTicks,
     cpuCooldownTicks,
     cpuThinkTicks,
   };
-  const pressure = advanceNoScorePressure(preparedState);
+  const pressure = state.training
+    ? { state: { ...preparedState, noScore: resetNoScoreState() }, pulse: false }
+    : advanceNoScorePressure(preparedState);
   const pressuredState = pressure.pulse ? applyNoScorePulse(pressure.state) : pressure.state;
-  const corePreparedState = prepareCoreReservation(pressuredState, clockedMatch);
+  const corePreparedState = state.training
+    ? pressuredState
+    : prepareCoreReservation(pressuredState, clockedMatch);
   const cpuReadyState =
-    isActivePhase(clockedMatch.phase) && cpuCooldownTicks === 0 && cpuThinkTicks === 0
+    !state.training &&
+    isActivePhase(clockedMatch.phase) &&
+    cpuCooldownTicks === 0 &&
+    cpuThinkTicks === 0
       ? fireCpuShot(corePreparedState, chooseCpuTarget(corePreparedState))
       : corePreparedState;
   const physics = stepPhysics({
@@ -628,9 +637,10 @@ export function createStraightBenchState(
   durationSeconds = MATCH_SECONDS,
   difficulty: CpuDifficulty = 'practice',
   board: PlayableBoardId = 'straight-bench',
+  training = false,
 ): StraightBenchState {
   const definition = getBoardDefinition(board);
-  return {
+  const state: StraightBenchState = {
     durationSeconds,
     board,
     difficulty,
@@ -653,6 +663,7 @@ export function createStraightBenchState(
     overtimeNoticeTicks: 0,
     nextBulletId: 1,
   };
+  return training ? { ...state, training: true } : state;
 }
 
 function fireShot(state: StraightBenchState, owner: Team, target: Point): StraightBenchState {
@@ -755,6 +766,7 @@ export function getPlayerTurretReadiness(state: StraightBenchState): TurretReadi
 }
 
 export function getCpuTurretReadiness(state: StraightBenchState): TurretReadiness {
+  if (state.training) return 'stopped';
   if (!isActivePhase(state.match.phase)) return 'stopped';
   if (state.cpuCooldownTicks > 0) return 'charging';
   return state.cpuThinkTicks === 0 ? 'ready' : 'thinking';
@@ -767,6 +779,7 @@ export function createStraightBenchRematch(state: StraightBenchState): StraightB
     state.durationSeconds,
     state.difficulty,
     state.board,
+    state.training ?? false,
   );
 }
 

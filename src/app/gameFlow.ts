@@ -177,6 +177,23 @@ export function startGame(state: AppFlowState): AppFlowState {
   return { ...state, screen: 'GAME', result: null };
 }
 
+/**
+ * Open the physics-backed shooting range from the tutorial.
+ *
+ * The range uses the same game canvas and input path as a normal match, but
+ * it is not a scored result and does not require the selection screen first.
+ */
+export function startPractice(state: AppFlowState): AppFlowState {
+  if (state.screen !== 'TUTORIAL') return state;
+  return {
+    ...state,
+    screen: 'GAME',
+    tutorialActionStarted: false,
+    tutorialActionCompleted: false,
+    result: null,
+  };
+}
+
 export function showResult(state: AppFlowState, result: GameResult): AppFlowState {
   if (state.screen !== 'GAME') return state;
   return { ...state, screen: 'RESULT', result };

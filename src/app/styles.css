@@ -446,6 +446,29 @@ h2 {
   text-align: center;
 }
 
+.training-status {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #f5c451;
+  border-radius: 10px;
+  background: #2b2410;
+  color: #fff4ca;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.training-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.training-actions button {
+  width: min(100%, 28rem);
+}
+
 .game-layout {
   display: grid;
   grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
@@ -1131,6 +1154,14 @@ body.game-active {
   font-size: 0.9rem;
 }
 
+#app[data-screen='GAME'][data-session='TRAINING'] .game-quick-status {
+  grid-template-columns: 1fr;
+}
+
+#app[data-screen='GAME'][data-session='TRAINING'] .training-status {
+  grid-column: 1 / -1;
+}
+
 .game-quick-goal strong {
   color: #b9fff4;
 }
@@ -1204,6 +1235,10 @@ body.game-active {
   margin: 0;
 }
 
+#app[data-screen='GAME'][data-session='TRAINING'] .game-root {
+  height: min(640px, calc(100svh - 208px));
+}
+
 #app[data-screen='GAME'] .game-root canvas {
   width: 100% !important;
   height: 100% !important;
@@ -1254,6 +1289,10 @@ body.game-active {
 
   #app[data-screen='GAME'] .game-root {
     height: min(640px, calc(100svh - 174px));
+  }
+
+  #app[data-screen='GAME'][data-session='TRAINING'] .game-root {
+    height: min(640px, calc(100svh - 220px));
   }
 
   #app[data-screen='GAME'] .game-guide {

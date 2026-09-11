@@ -16,7 +16,29 @@ async function startTrial(page: Page): Promise<void> {
   await expect(page.locator('#game-root canvas')).toBeVisible();
 }
 
+async function startTraining(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.locator('#player-name').fill('練習プレイヤー');
+  await page.locator('#tutorial-button').click();
+  await expect(page.locator('#tutorial-screen')).toBeVisible();
+  await page.locator('#tutorial-practice').click();
+  await expect(page.locator('#game-screen')).toBeVisible();
+  await expect(page.locator('#app')).toHaveAttribute('data-screen', 'GAME');
+  await expect(page.locator('#game-title')).toHaveText('射撃場');
+  await expect(page.locator('#game-training-status')).toContainText(
+    '白いパックを狙って撃ってください',
+  );
+  await expect(page.locator('#game-root canvas')).toBeVisible();
+}
+
 test.describe('ホケットのブラウザ導線', () => {
+  test('説明から実際の物理を使う射撃場へ入り、ホームへ戻れる', async ({ page }) => {
+    await startTraining(page);
+    await page.locator('#home-button').click();
+    await expect(page.locator('#home-screen')).toBeVisible();
+    await expect(page.locator('#app')).toHaveAttribute('data-screen', 'HOME');
+  });
+
   test('試合の目的と状態通知を確認できる', async ({ page }) => {
     await startTrial(page);
 
