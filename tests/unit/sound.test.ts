@@ -20,6 +20,10 @@ describe('sound controller', () => {
       sound.setMusicEnabled(true);
       sound.setMusicActive(true);
       sound.playShot('player');
+      sound.playHit('player');
+      sound.playSurface('bullet', 'player');
+      sound.playSurface('puck');
+      sound.playReady();
       sound.playGoal('cpu');
       sound.setMusicActive(false);
       sound.setMusicEnabled(false);

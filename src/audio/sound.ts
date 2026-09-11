@@ -2,6 +2,8 @@ export type SoundOwner = 'player' | 'cpu';
 
 export type SoundTeam = 'player' | 'cpu';
 
+export type SoundSurface = 'bullet' | 'puck';
+
 export interface SoundSettings {
   readonly effectsEnabled: boolean;
   readonly musicEnabled: boolean;
@@ -70,6 +72,20 @@ export class SoundController {
   public playHit(owner: SoundOwner): void {
     if (!this.effectsEnabled) return;
     this.playTone(owner === 'player' ? 560 : 420, owner === 'player' ? 320 : 260, 0.1);
+  }
+
+  public playSurface(surface: SoundSurface, owner: SoundOwner = 'player'): void {
+    if (!this.effectsEnabled) return;
+    if (surface === 'puck') {
+      this.playTone(360, 190, 0.09);
+      return;
+    }
+    this.playTone(owner === 'player' ? 300 : 230, owner === 'player' ? 150 : 120, 0.07);
+  }
+
+  public playReady(): void {
+    if (!this.effectsEnabled) return;
+    this.playTone(330, 660, 0.12);
   }
 
   public playGoal(team: SoundTeam): void {
