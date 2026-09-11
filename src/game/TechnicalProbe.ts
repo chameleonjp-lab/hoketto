@@ -37,6 +37,7 @@ import {
 } from './systemLifecycle';
 import { advanceFixedStepClock, createFixedStepClockState } from './fixedStepClock';
 import { getNativeClientPoint, mapClientPointToLogical } from './inputCoordinates';
+import { detectFeedbackEvents, type FeedbackEvent } from './feedback';
 
 const WIDTH = STRAIGHT_BENCH_WIDTH;
 const HEIGHT = STRAIGHT_BENCH_HEIGHT;
@@ -74,12 +75,32 @@ export interface TechnicalProbeOptions {
   readonly onResult?: (result: TechnicalProbeResult) => void;
   readonly onShot?: (owner: 'player' | 'cpu') => void;
   readonly onPuckHit?: (owner: 'player' | 'cpu', puckId: number, position: Point) => void;
+  readonly onSurface?: (subject: 'bullet' | 'puck', owner?: 'player' | 'cpu') => void;
+  readonly onReady?: () => void;
   readonly onGoal?: (
     team: 'player' | 'cpu',
     scores: { readonly playerScore: number; readonly cpuScore: number },
   ) => void;
   readonly onReadinessChange?: (readiness: TechnicalProbeReadiness) => void;
   readonly onPauseChange?: (state: TechnicalProbePauseState) => void;
+}
+
+interface VisualFeedbackEffect {
+  readonly kind: 'shot' | 'hit' | 'surface' | 'goal' | 'ready';
+  readonly position: Point;
+  readonly owner?: 'player' | 'cpu';
+  readonly subject?: 'bullet' | 'puck';
+  readonly team?: 'player' | 'cpu';
+  readonly points?: 1 | 2;
+  ageSeconds: number;
+  readonly durationSeconds: number;
+}
+
+interface TrailSegment {
+  readonly from: Point;
+  readonly to: Point;
+  readonly owner?: 'player' | 'cpu';
+  ageSeconds: number;
 }
 
 class TechnicalProbeScene extends Phaser.Scene {
@@ -135,6 +156,15 @@ class TechnicalProbeScene extends Phaser.Scene {
   private capturedPointer: { readonly internalId: number; readonly nativeId: number } | null = null;
   private readonly useNativePointerEvents = typeof PointerEvent !== 'undefined';
   private lastPlayerReadinessKey = '';
+  private readonly feedbackEffects: VisualFeedbackEffect[] = [];
+  private readonly bulletTrails = new Map<number, TrailSegment>();
+  private readonly puckTrails = new Map<number, TrailSegment>();
+  private feedbackMessage = '';
+  private feedbackMessageRemainingSeconds = 0;
+  private readonly reduceMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   public constructor(options: TechnicalProbeOptions = {}) {
     super('technical-probe');
@@ -226,6 +256,7 @@ class TechnicalProbeScene extends Phaser.Scene {
   }
 
   public update(_time: number, delta: number): void {
+    this.advancePresentation(delta);
     const phase = this.state.match.phase;
     if (phase === 'SUSPENDED' || phase === 'RESULT' || phase === 'INVALID') {
       this.fixedStepClock = createFixedStepClockState();
@@ -290,40 +321,9 @@ class TechnicalProbeScene extends Phaser.Scene {
     const previousBulletIds = new Set(previous.bullets.map((bullet) => bullet.id));
     this.state = stepStraightBench(previous, 1);
 
-    // The pure physics layer intentionally returns only the next state. For
-    // the presentation layer, a removed bullet plus a nearby puck velocity
-    // change is enough to identify a hit without changing the match rules.
-    const nextPuckById = new Map(this.state.pucks.map((puck) => [puck.id, puck]));
-    for (const bullet of previous.bullets) {
-      if (
-        previousBulletIds.has(bullet.id) &&
-        this.state.bullets.some((item) => item.id === bullet.id)
-      ) {
-        continue;
-      }
-      let bestImpact: {
-        readonly puckId: number;
-        readonly position: Point;
-        readonly delta: number;
-      } | null = null;
-      for (const previousPuck of previous.pucks) {
-        if (!previousPuck.active) continue;
-        const nextPuck = nextPuckById.get(previousPuck.id);
-        if (!nextPuck) continue;
-        const distance = Math.hypot(
-          bullet.position.x - previousPuck.position.x,
-          bullet.position.y - previousPuck.position.y,
-        );
-        if (distance > 48) continue;
-        const delta = Math.hypot(
-          nextPuck.velocity.x - previousPuck.velocity.x,
-          nextPuck.velocity.y - previousPuck.velocity.y,
-        );
-        if (delta < 40 || (bestImpact !== null && bestImpact.delta >= delta)) continue;
-        bestImpact = { puckId: previousPuck.id, position: nextPuck.position, delta };
-      }
-      if (bestImpact)
-        this.options.onPuckHit?.(bullet.owner, bestImpact.puckId, bestImpact.position);
+    this.recordTrails(previous, this.state);
+    for (const event of detectFeedbackEvents(previous, this.state)) {
+      this.applyFeedbackEvent(event);
     }
 
     let observedCpuShot = false;
@@ -348,6 +348,124 @@ class TechnicalProbeScene extends Phaser.Scene {
         cpuScore: this.state.match.cpuScore,
       });
     }
+  }
+
+  private recordTrails(previous: StraightBenchState, next: StraightBenchState): void {
+    const previousActive =
+      previous.match.phase === 'PLAYING' || previous.match.phase === 'OVERTIME';
+    const nextActive = next.match.phase === 'PLAYING' || next.match.phase === 'OVERTIME';
+    if (!nextActive) return;
+
+    const previousBullets = new Map(previous.bullets.map((bullet) => [bullet.id, bullet]));
+    for (const bullet of next.bullets) {
+      const previousBullet = previousActive ? previousBullets.get(bullet.id) : undefined;
+      this.bulletTrails.set(bullet.id, {
+        from: previousBullet?.position ?? bullet.position,
+        to: bullet.position,
+        owner: bullet.owner,
+        ageSeconds: 0,
+      });
+    }
+
+    const previousPucks = new Map(previous.pucks.map((puck) => [puck.id, puck]));
+    for (const puck of next.pucks) {
+      if (!puck.active) continue;
+      const previousPuck = previousActive ? previousPucks.get(puck.id) : undefined;
+      this.puckTrails.set(puck.id, {
+        from: previousPuck?.active ? previousPuck.position : puck.position,
+        to: puck.position,
+        ageSeconds: 0,
+      });
+    }
+  }
+
+  private applyFeedbackEvent(event: FeedbackEvent): void {
+    if (event.kind === 'shot') {
+      this.addVisualEffect({ kind: 'shot', position: event.position, owner: event.owner });
+      this.setFeedbackMessage('発射');
+      return;
+    }
+    if (event.kind === 'puck-hit') {
+      this.addVisualEffect({
+        kind: 'hit',
+        position: event.position,
+        owner: event.owner,
+      });
+      this.setFeedbackMessage('パック命中');
+      this.options.onPuckHit?.(event.owner, event.puckId, event.position);
+      return;
+    }
+    if (event.kind === 'surface') {
+      this.addVisualEffect({
+        kind: 'surface',
+        position: event.position,
+        owner: event.owner,
+        subject: event.subject,
+      });
+      this.setFeedbackMessage(event.subject === 'puck' ? 'パック反射' : '弾が反射／接触');
+      this.options.onSurface?.(event.subject, event.owner);
+      return;
+    }
+    if (event.kind === 'goal') {
+      this.addVisualEffect({
+        kind: 'goal',
+        position: event.position,
+        team: event.team,
+        points: event.points,
+      });
+      this.setFeedbackMessage(`${event.team === 'player' ? '自分' : '相手'} +${event.points}点`);
+      return;
+    }
+    this.addVisualEffect({ kind: 'ready', position: event.position });
+    this.setFeedbackMessage('充電完了');
+    this.options.onReady?.();
+  }
+
+  private addVisualEffect(
+    effect: Omit<VisualFeedbackEffect, 'ageSeconds' | 'durationSeconds'>,
+  ): void {
+    const durationSeconds = this.reduceMotion
+      ? effect.kind === 'goal'
+        ? 0.18
+        : 0.08
+      : effect.kind === 'goal'
+        ? 0.65
+        : effect.kind === 'hit'
+          ? 0.36
+          : effect.kind === 'ready'
+            ? 0.42
+            : effect.kind === 'surface'
+              ? 0.24
+              : 0.2;
+    this.feedbackEffects.push({ ...effect, ageSeconds: 0, durationSeconds });
+    if (this.feedbackEffects.length > 32) this.feedbackEffects.splice(0, 8);
+  }
+
+  private setFeedbackMessage(message: string): void {
+    this.feedbackMessage = message;
+    this.feedbackMessageRemainingSeconds = this.reduceMotion ? 0.45 : 0.8;
+  }
+
+  private advancePresentation(delta: number): void {
+    const seconds = Number.isFinite(delta) ? Math.max(0, Math.min(0.1, delta / 1000)) : 0;
+    for (const effect of this.feedbackEffects) effect.ageSeconds += seconds;
+    for (let index = this.feedbackEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.feedbackEffects[index];
+      if (!effect || effect.ageSeconds >= effect.durationSeconds)
+        this.feedbackEffects.splice(index, 1);
+    }
+    for (const [id, trail] of this.bulletTrails) {
+      trail.ageSeconds += seconds;
+      if (trail.ageSeconds >= 0.14) this.bulletTrails.delete(id);
+    }
+    for (const [id, trail] of this.puckTrails) {
+      trail.ageSeconds += seconds;
+      if (trail.ageSeconds >= 0.18) this.puckTrails.delete(id);
+    }
+    this.feedbackMessageRemainingSeconds = Math.max(
+      0,
+      this.feedbackMessageRemainingSeconds - seconds,
+    );
   }
 
   private pointFromPointer(pointer: Phaser.Input.Pointer): Point {
@@ -701,6 +819,9 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (this.resizeFrame !== null) window.cancelAnimationFrame(this.resizeFrame);
     this.resizeFrame = null;
     this.clearRenderRecoveryTimer();
+    this.feedbackEffects.length = 0;
+    this.bulletTrails.clear();
+    this.puckTrails.clear();
   };
 
   private handleKeyboardDown(event: KeyboardEvent): void {
@@ -731,10 +852,24 @@ class TechnicalProbeScene extends Phaser.Scene {
     if (event.kind === 'fire') {
       if (this.inputController.getState().phase === 'AIMING') return;
       const nextState = firePlayerShot(this.state, event.point);
-      if (nextState !== this.state) this.options.onShot?.('player');
-      this.state = nextState;
+      this.applyPlayerShot(nextState);
       return;
     }
+  }
+
+  private applyPlayerShot(nextState: StraightBenchState): void {
+    if (nextState === this.state) return;
+    const bullet = nextState.bullets.find(
+      (candidate) => candidate.id === this.state.nextBulletId && candidate.owner === 'player',
+    );
+    this.addVisualEffect({
+      kind: 'shot',
+      position: bullet?.position ?? getPlayerTurret(),
+      owner: 'player',
+    });
+    this.setFeedbackMessage('発射');
+    this.options.onShot?.('player');
+    this.state = nextState;
   }
 
   private syncKeyboardState(): void {
@@ -795,8 +930,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     }
     if (event.kind === 'fire') {
       const nextState = firePlayerShot(this.state, event.point);
-      if (nextState !== this.state) this.options.onShot?.('player');
-      this.state = nextState;
+      this.applyPlayerShot(nextState);
       this.aimPoint = null;
       return;
     }
@@ -823,6 +957,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.drawGoal(graphics, 'bottom');
     this.drawObstacles(graphics);
     this.drawNoScorePressure(graphics);
+    this.drawTrails(graphics);
     this.drawTurret(graphics, getCpuTurret(), this.cpuColor, false);
     this.drawTurret(graphics, getPlayerTurret(), this.playerColor, true);
 
@@ -935,6 +1070,8 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.strokeCircle(puck.position.x, puck.position.y, puck.radius);
     }
 
+    this.drawFeedbackEffects(graphics);
+
     if (this.state.match.phase === 'SUSPENDED') {
       graphics.fillStyle(this.boardColor, 0.92);
       graphics.fillRect(0, 0, WIDTH, HEIGHT);
@@ -1008,6 +1145,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       if (pressure.pulseTicksRemaining > 0) notices.push('中央パルス');
     }
     if (this.state.core.phase === 'RESERVED') notices.push('2点コア予告：あと2秒');
+    if (this.feedbackMessageRemainingSeconds > 0) notices.unshift(this.feedbackMessage);
     if (
       this.inputController.getState().phase === 'CHARGING' &&
       (phase === 'PLAYING' || phase === 'OVERTIME')
@@ -1097,6 +1235,76 @@ class TechnicalProbeScene extends Phaser.Scene {
     const radius = 24 + progress * 130;
     graphics.lineStyle(4, 0xffd34e, Math.max(0, 1 - progress));
     graphics.strokeCircle(WIDTH / 2, HEIGHT / 2, radius);
+  }
+
+  private drawTrails(graphics: Phaser.GameObjects.Graphics): void {
+    for (const trail of this.bulletTrails.values()) {
+      const alpha = Math.max(0, 0.42 * (1 - trail.ageSeconds / 0.14));
+      if (alpha <= 0) continue;
+      const color = trail.owner === 'cpu' ? this.cpuColor : this.playerColor;
+      graphics.lineStyle(7, color, alpha);
+      graphics.lineBetween(trail.from.x, trail.from.y, trail.to.x, trail.to.y);
+    }
+    for (const trail of this.puckTrails.values()) {
+      const alpha = Math.max(0, 0.3 * (1 - trail.ageSeconds / 0.18));
+      if (alpha <= 0) continue;
+      graphics.lineStyle(6, this.puckColor, alpha);
+      graphics.lineBetween(trail.from.x, trail.from.y, trail.to.x, trail.to.y);
+    }
+  }
+
+  private drawFeedbackEffects(graphics: Phaser.GameObjects.Graphics): void {
+    for (const effect of this.feedbackEffects) {
+      const progress = Math.max(0, Math.min(1, effect.ageSeconds / effect.durationSeconds));
+      const fade = Math.max(0, 1 - progress);
+      const color =
+        effect.owner === 'cpu' || effect.team === 'cpu'
+          ? this.cpuColor
+          : effect.owner === 'player' || effect.team === 'player'
+            ? this.playerColor
+            : 0xffd34e;
+      const { x, y } = effect.position;
+      if (effect.kind === 'shot') {
+        graphics.lineStyle(3, color, 0.72 * fade);
+        graphics.strokeCircle(x, y, 8 + progress * 20);
+        continue;
+      }
+      if (effect.kind === 'hit') {
+        graphics.lineStyle(4, color, 0.9 * fade);
+        graphics.strokeCircle(x, y, 8 + progress * 28);
+        const inner = 10 + progress * 8;
+        const outer = 20 + progress * 18;
+        for (let index = 0; index < 8; index += 1) {
+          const angle = (Math.PI * 2 * index) / 8;
+          graphics.lineBetween(
+            x + Math.cos(angle) * inner,
+            y + Math.sin(angle) * inner,
+            x + Math.cos(angle) * outer,
+            y + Math.sin(angle) * outer,
+          );
+        }
+        continue;
+      }
+      if (effect.kind === 'surface') {
+        graphics.lineStyle(4, color, 0.86 * fade);
+        const radius = 6 + progress * 14;
+        graphics.strokeCircle(x, y, radius);
+        graphics.lineBetween(x - radius, y - radius, x + radius, y + radius);
+        graphics.lineBetween(x + radius, y - radius, x - radius, y + radius);
+        continue;
+      }
+      if (effect.kind === 'goal') {
+        graphics.lineStyle(5, color, 0.9 * fade);
+        graphics.strokeCircle(x, y, 20 + progress * 46);
+        const direction = effect.team === 'player' ? -1 : 1;
+        graphics.lineBetween(x, y, x, y + direction * (22 + progress * 34));
+        graphics.lineStyle(2, color, 0.65 * fade);
+        graphics.strokeCircle(x, y, 8 + progress * 18);
+        continue;
+      }
+      graphics.lineStyle(4, this.playerColor, 0.84 * fade);
+      graphics.strokeCircle(x, y, 24 + Math.sin(progress * Math.PI) * 10);
+    }
   }
 
   private drawCoreReservation(graphics: Phaser.GameObjects.Graphics): void {

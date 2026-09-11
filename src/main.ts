@@ -650,10 +650,17 @@ function enterGame(seed = nextSeed, kind: GameSessionKind = 'match'): void {
         }
       },
       onPuckHit: (owner) => {
+        soundController.playHit(owner);
         if (kind !== 'training' || owner !== 'player' || trainingStep !== 'aim') return;
         trainingStep = 'score';
         render();
         updateGameLiveStatus('命中しました。上の赤いゴールへ入れて得点してみましょう。');
+      },
+      onSurface: (subject, owner) => {
+        soundController.playSurface(subject, owner);
+      },
+      onReady: () => {
+        soundController.playReady();
       },
       onReadinessChange: updateGameReadiness,
       onGoal: (team, scores) => {
