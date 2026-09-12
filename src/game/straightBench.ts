@@ -28,6 +28,8 @@ export const BULLET_RADIUS = 7;
 export const BULLET_SPEED = 900;
 export const BULLET_LIFETIME_TICKS = TICKS_PER_SECOND;
 export const SHOT_COOLDOWN_TICKS = Math.round(0.9 * TICKS_PER_SECOND);
+/** 得点停止の終わりは、両者が満タンの状態から再開する。 */
+export const ROUND_RESET_COOLDOWN_TICKS = 0;
 export const GOAL_PAUSE_TICKS = Math.round(0.8 * TICKS_PER_SECOND);
 export const RESUME_COUNTDOWN_TICKS = 3 * TICKS_PER_SECOND;
 export const PUCK_HIT_IMPULSE = 360;
@@ -91,6 +93,21 @@ export interface BulletState {
   readonly reflections: number;
 }
 
+export type CpuDecisionReason = 'defense' | 'attack' | 'fallback';
+
+/** CPUが最後に観測して確定した照準。物理計算や勝敗には影響しない診断情報。 */
+export interface CpuDecisionRecord {
+  readonly observationTick: number;
+  readonly firedTick: number;
+  readonly puckId: number | null;
+  readonly reason: CpuDecisionReason;
+  readonly observedPosition: Point;
+  readonly observedVelocity: Point;
+  readonly predictedPosition: Point;
+  readonly target: Point;
+  readonly aimErrorRadians: number;
+}
+
 export type GoalResumePhase = 'PLAYING' | 'OVERTIME' | 'OVERTIME_NOTICE' | 'RESULT';
 
 export interface StraightBenchState {
@@ -107,6 +124,7 @@ export interface StraightBenchState {
   readonly cooldownTicks: number;
   readonly cpuCooldownTicks: number;
   readonly cpuThinkTicks: number;
+  readonly cpuLastDecision?: CpuDecisionRecord;
   readonly goalPauseTicks: number;
   readonly goalResumePhase?: GoalResumePhase;
   readonly overtimeNoticeTicks: number;
@@ -170,9 +188,48 @@ function cpuAimLeadTicks(difficulty: CpuDifficulty): number {
 }
 
 function cpuAimErrorRadians(state: StraightBenchState): number {
-  const maximumDegrees = state.difficulty === 'normal' ? 4 : 8;
+  const maximumDegrees = state.difficulty === 'normal' ? 5 : 10;
   const deterministicSample = Math.sin(state.match.seed * 12.9898 + state.nextBulletId * 78.233);
   return (deterministicSample * maximumDegrees * Math.PI) / 180;
+}
+
+function chooseCpuPuck(state: StraightBenchState): {
+  readonly puck: PuckState;
+  readonly reason: Exclude<CpuDecisionReason, 'fallback'>;
+} | null {
+  const active = state.pucks.filter((puck) => puck.active);
+  if (active.length === 0) return null;
+
+  // 上向きに進むパックはプレイヤー側のゴールへ近づいているため、
+  // まず守備対象にする。2点コアとゴールに近い物体を優先し、配列順に依存しない。
+  const threats = active
+    .filter((puck) => puck.velocity.y < -24 || puck.position.y < STRAIGHT_BENCH_HEIGHT * 0.34)
+    .sort((left, right) => {
+      const leftScore =
+        (left.points ?? 1) * 10_000 +
+        (STRAIGHT_BENCH_HEIGHT - left.position.y) * 4 +
+        Math.max(0, -left.velocity.y);
+      const rightScore =
+        (right.points ?? 1) * 10_000 +
+        (STRAIGHT_BENCH_HEIGHT - right.position.y) * 4 +
+        Math.max(0, -right.velocity.y);
+      return rightScore - leftScore || left.id - right.id;
+    });
+  const defensiveTarget = threats[0];
+  if (defensiveTarget) return { puck: defensiveTarget, reason: 'defense' };
+
+  const attackTarget = [...active].sort((left, right) => {
+    const leftScore =
+      (left.points ?? 1) * 10_000 +
+      Math.max(0, left.velocity.y) * 2 +
+      (STRAIGHT_BENCH_HEIGHT - Math.abs(left.position.y - STRAIGHT_BENCH_HEIGHT / 2));
+    const rightScore =
+      (right.points ?? 1) * 10_000 +
+      Math.max(0, right.velocity.y) * 2 +
+      (STRAIGHT_BENCH_HEIGHT - Math.abs(right.position.y - STRAIGHT_BENCH_HEIGHT / 2));
+    return rightScore - leftScore || left.id - right.id;
+  })[0];
+  return attackTarget ? { puck: attackTarget, reason: 'attack' } : null;
 }
 
 function rotate(vector: Point, radians: number): Point {
@@ -182,6 +239,58 @@ function rotate(vector: Point, radians: number): Point {
     x: vector.x * cosine - vector.y * sine,
     y: vector.x * sine + vector.y * cosine,
   };
+}
+
+function chooseCpuShotPlan(state: StraightBenchState): CpuShotPlan {
+  const selected = chooseCpuPuck(state);
+  const puck = selected?.puck;
+  const leadSeconds = cpuAimLeadTicks(state.difficulty) / TICKS_PER_SECOND;
+  const predictedPosition = puck
+    ? add(puck.position, scale(puck.velocity, leadSeconds))
+    : { x: STRAIGHT_BENCH_WIDTH / 2, y: STRAIGHT_BENCH_HEIGHT / 2 };
+  const clamped = {
+    x: clamp(
+      predictedPosition.x,
+      puck?.radius ?? PUCK_RADIUS,
+      STRAIGHT_BENCH_WIDTH - (puck?.radius ?? PUCK_RADIUS),
+    ),
+    y: clamp(
+      predictedPosition.y,
+      puck?.radius ?? PUCK_RADIUS,
+      STRAIGHT_BENCH_HEIGHT - (puck?.radius ?? PUCK_RADIUS),
+    ),
+  };
+  const distance = Math.max(
+    1,
+    magnitude({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }),
+  );
+  const aimErrorRadians = cpuAimErrorRadians(state);
+  const direction = rotate(
+    normalize({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }, { x: 0, y: 1 }),
+    aimErrorRadians,
+  );
+  return {
+    puckId: puck?.id ?? null,
+    reason: selected?.reason ?? 'fallback',
+    observedPosition: puck?.position ?? clamped,
+    observedVelocity: puck?.velocity ?? { x: 0, y: 0 },
+    predictedPosition,
+    target: {
+      x: CPU_TURRET.x + direction.x * distance,
+      y: CPU_TURRET.y + direction.y * distance,
+    },
+    aimErrorRadians,
+  };
+}
+
+export interface CpuShotPlan {
+  readonly puckId: number | null;
+  readonly reason: CpuDecisionReason;
+  readonly observedPosition: Point;
+  readonly observedVelocity: Point;
+  readonly predictedPosition: Point;
+  readonly target: Point;
+  readonly aimErrorRadians: number;
 }
 
 function boardFor(state: StraightBenchState): ReturnType<typeof getBoardDefinition> {
@@ -445,8 +554,8 @@ function resetForNextRound(state: StraightBenchState): StraightBenchState {
     ...roundState,
     pucks: resetPucksForRound(roundState),
     bullets: [],
-    cooldownTicks: SHOT_COOLDOWN_TICKS,
-    cpuCooldownTicks: SHOT_COOLDOWN_TICKS,
+    cooldownTicks: ROUND_RESET_COOLDOWN_TICKS,
+    cpuCooldownTicks: ROUND_RESET_COOLDOWN_TICKS,
     cpuThinkTicks: cpuReactionTicks(state.difficulty),
     goalSnapshot: undefined,
     goalExpansionRatio: undefined,
@@ -586,7 +695,20 @@ function stepPlaying(state: StraightBenchState): StraightBenchState {
     isActivePhase(clockedMatch.phase) &&
     cpuCooldownTicks === 0 &&
     cpuThinkTicks === 0
-      ? fireCpuShot(corePreparedState, chooseCpuTarget(corePreparedState))
+      ? (() => {
+          const plan = chooseCpuShotPlan(corePreparedState);
+          const fired = fireCpuShot(corePreparedState, plan.target);
+          return fired === corePreparedState
+            ? fired
+            : {
+                ...fired,
+                cpuLastDecision: {
+                  ...plan,
+                  observationTick: state.match.tick,
+                  firedTick: state.match.tick,
+                },
+              };
+        })()
       : corePreparedState;
   const physics = stepPhysics({
     board: boardFor(cpuReadyState),
@@ -698,28 +820,8 @@ function fireShot(state: StraightBenchState, owner: Team, target: Point): Straig
   };
 }
 
-function chooseCpuTarget(state: StraightBenchState): Point {
-  const puck = state.pucks.find((candidate) => candidate.active);
-  if (!puck) return { x: STRAIGHT_BENCH_WIDTH / 2, y: STRAIGHT_BENCH_HEIGHT / 2 };
-
-  const leadSeconds = cpuAimLeadTicks(state.difficulty) / TICKS_PER_SECOND;
-  const predicted = add(puck.position, scale(puck.velocity, leadSeconds));
-  const clamped = {
-    x: clamp(predicted.x, puck.radius, STRAIGHT_BENCH_WIDTH - puck.radius),
-    y: clamp(predicted.y, puck.radius, STRAIGHT_BENCH_HEIGHT - puck.radius),
-  };
-  const distance = Math.max(
-    1,
-    magnitude({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }),
-  );
-  const direction = rotate(
-    normalize({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }, { x: 0, y: 1 }),
-    cpuAimErrorRadians(state),
-  );
-  return {
-    x: CPU_TURRET.x + direction.x * distance,
-    y: CPU_TURRET.y + direction.y * distance,
-  };
+export function getCpuShotPlan(state: StraightBenchState): CpuShotPlan {
+  return chooseCpuShotPlan(state);
 }
 
 export function firePlayerShot(state: StraightBenchState, target: Point): StraightBenchState {
