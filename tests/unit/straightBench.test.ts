@@ -11,11 +11,13 @@ import {
   OVERTIME_GOAL_EXPANSION_RATIO,
   GOAL_PAUSE_TICKS,
   NORMAL_CPU_REACTION_TICKS,
+  ROUND_RESET_COOLDOWN_TICKS,
   SHOT_COOLDOWN_TICKS,
   createStraightBenchState,
   createStraightBenchRematch,
   fireCpuShot,
   firePlayerShot,
+  getCpuShotPlan,
   getCpuTurretReadiness,
   getGoalOpeningBounds,
   getPlayerTurretReadiness,
@@ -516,6 +518,28 @@ describe('straight bench simulation', () => {
     expect(resumed.pucks[0]?.position).toEqual({ x: 180, y: 320 });
   });
 
+  it('得点停止後は両者の充電を満タンにして再開する', () => {
+    const initial = createStraightBenchState();
+    const nearGoal = {
+      ...initial,
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          position: { x: 180, y: 30 },
+          velocity: { x: 0, y: -300 },
+        },
+      ],
+    };
+
+    const scored = stepStraightBench(nearGoal, 10);
+    const resumed = stepStraightBench(scored, GOAL_PAUSE_TICKS);
+
+    expect(resumed.cooldownTicks).toBe(ROUND_RESET_COOLDOWN_TICKS);
+    expect(resumed.cpuCooldownTicks).toBe(ROUND_RESET_COOLDOWN_TICKS);
+    expect(getPlayerTurretReadiness(resumed)).toBe('ready');
+    expect(getCpuTurretReadiness(resumed)).toBe('thinking');
+  });
+
   it('ゴール開口の外では得点せず、外周レールで跳ね返る', () => {
     const initial = createStraightBenchState();
     const outsideOpening = {
@@ -608,6 +632,49 @@ describe('straight bench simulation', () => {
 
     const stillCooling = stepStraightBench(afterReaction, CPU_REACTION_TICKS);
     expect(stillCooling.nextBulletId).toBe(afterReaction.nextBulletId);
+  });
+
+  it('CPUはプレイヤー側ゴールへ向かう高得点パックを先に守る', () => {
+    const initial = createStraightBenchState(20260814, 90, 'normal');
+    const state = {
+      ...initial,
+      pucks: [
+        {
+          ...initial.pucks[0]!,
+          id: 1,
+          position: { x: 120, y: 250 },
+          velocity: { x: 0, y: -180 },
+          points: 1 as const,
+        },
+        {
+          ...initial.pucks[0]!,
+          id: 2,
+          position: { x: 240, y: 450 },
+          velocity: { x: 0, y: 40 },
+          points: 2 as const,
+        },
+      ],
+    };
+
+    const plan = getCpuShotPlan(state);
+
+    expect(plan.reason).toBe('defense');
+    expect(plan.puckId).toBe(1);
+    expect(getCpuShotPlan(state)).toEqual(plan);
+  });
+
+  it('CPUの発射時に観測と照準の記録を残す', () => {
+    const initial = createStraightBenchState(20260814, 90, 'normal');
+    const fired = stepStraightBench(initial, NORMAL_CPU_REACTION_TICKS);
+
+    expect(fired.cpuLastDecision).toMatchObject({
+      observationTick: NORMAL_CPU_REACTION_TICKS - 1,
+      firedTick: NORMAL_CPU_REACTION_TICKS - 1,
+      puckId: 1,
+      reason: 'attack',
+    });
+    expect(fired.cpuLastDecision?.target.x).toBeTypeOf('number');
+    expect(fired.cpuLastDecision?.target.y).toBeTypeOf('number');
   });
 
   it('CPU弾も同じ命中判定でパックを自陣方向へ押す', () => {

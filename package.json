@@ -8,6 +8,7 @@
   },
   "scripts": {
     "audit:physics": "node scripts/audit-physics.mjs",
+    "audit:gameplay": "node scripts/audit-gameplay.mjs",
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
     "format:check": "prettier --check .",
