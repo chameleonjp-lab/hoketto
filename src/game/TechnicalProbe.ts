@@ -17,7 +17,6 @@ import {
   beginStraightBenchResume,
   firePlayerShot,
   getCpuTurret,
-  getCpuTurretReadiness,
   getStraightBenchGeometry,
   getPlayerTurret,
   getPlayerTurretReadiness,
@@ -43,6 +42,28 @@ const WIDTH = STRAIGHT_BENCH_WIDTH;
 const HEIGHT = STRAIGHT_BENCH_HEIGHT;
 const BOARD_MARGIN = 24;
 const RENDER_RESTORE_TIMEOUT_MS = 5_000;
+
+function mixRgb(from: number, to: number, ratio: number): number {
+  const amount = Math.max(0, Math.min(1, ratio));
+  const fromRed = (from >> 16) & 0xff;
+  const fromGreen = (from >> 8) & 0xff;
+  const fromBlue = from & 0xff;
+  const toRed = (to >> 16) & 0xff;
+  const toGreen = (to >> 8) & 0xff;
+  const toBlue = to & 0xff;
+  return (
+    (Math.round(fromRed + (toRed - fromRed) * amount) << 16) |
+    (Math.round(fromGreen + (toGreen - fromGreen) * amount) << 8) |
+    Math.round(fromBlue + (toBlue - fromBlue) * amount)
+  );
+}
+
+function colorLuminance(color: number): number {
+  const red = (color >> 16) & 0xff;
+  const green = (color >> 8) & 0xff;
+  const blue = color & 0xff;
+  return (red * 0.299 + green * 0.587 + blue * 0.114) / 255;
+}
 
 export interface TechnicalProbeResult {
   readonly playerScore: number;
@@ -107,11 +128,14 @@ class TechnicalProbeScene extends Phaser.Scene {
   private readonly playerColor = 0x00b8a9;
   private readonly cpuColor = 0xe24d35;
   private readonly puckColor = 0xf8fcff;
-  private readonly boardColor = 0x000000;
+  private readonly boardEmptyColor = 0x000000;
+  private readonly boardChargeColor = 0xffffff;
+  private readonly boardReadyColor = 0xffd34e;
   private readonly lineColor = 0xc8d1e5;
+  private renderLineColor = 0xc8d1e5;
+  private renderTextColor = '#f4fafc';
   private graphics!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
-  private statusText!: Phaser.GameObjects.Text;
   private coreText!: Phaser.GameObjects.Text;
   private noticeText!: Phaser.GameObjects.Text;
   private cpuGoalText!: Phaser.GameObjects.Text;
@@ -161,6 +185,8 @@ class TechnicalProbeScene extends Phaser.Scene {
   private readonly puckTrails = new Map<number, TrailSegment>();
   private feedbackMessage = '';
   private feedbackMessageRemainingSeconds = 0;
+  private chargeReadyFlashSeconds = 0;
+  private lastRenderedPlayerReadiness: TurretReadiness | null = null;
   private readonly reduceMotion =
     typeof window !== 'undefined' &&
     typeof window.matchMedia === 'function' &&
@@ -198,12 +224,6 @@ class TechnicalProbeScene extends Phaser.Scene {
       color: '#f4fafc',
       fontFamily: 'system-ui, sans-serif',
       fontSize: '14px',
-      fontStyle: 'bold',
-    });
-    this.statusText = this.add.text(0, 0, '', {
-      color: '#e0e7f3',
-      fontFamily: 'system-ui, sans-serif',
-      fontSize: '13px',
       fontStyle: 'bold',
     });
     this.coreText = this.add.text(0, 0, '', {
@@ -417,7 +437,6 @@ class TechnicalProbeScene extends Phaser.Scene {
       return;
     }
     this.addVisualEffect({ kind: 'ready', position: event.position });
-    this.setFeedbackMessage('充電完了');
     this.options.onReady?.();
   }
 
@@ -466,6 +485,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       0,
       this.feedbackMessageRemainingSeconds - seconds,
     );
+    this.chargeReadyFlashSeconds = Math.max(0, this.chargeReadyFlashSeconds - seconds);
   }
 
   private pointFromPointer(pointer: Phaser.Input.Pointer): Point {
@@ -939,18 +959,51 @@ class TechnicalProbeScene extends Phaser.Scene {
     }
   }
 
+  private updateChargePresentation(): void {
+    const readiness = getPlayerTurretReadiness(this.state);
+    if (
+      (this.lastRenderedPlayerReadiness === 'charging' && readiness === 'ready') ||
+      (this.lastRenderedPlayerReadiness === null && readiness === 'ready')
+    ) {
+      // Give the player a short, unambiguous MAX flash before the ready board
+      // settles to the same yellow as the two-point bonus puck.
+      this.chargeReadyFlashSeconds = this.reduceMotion ? 0.08 : 0.2;
+    }
+    this.lastRenderedPlayerReadiness = readiness;
+  }
+
+  private playerChargeRatio(): number {
+    const readiness = getPlayerTurretReadiness(this.state);
+    if (readiness === 'ready') return 1;
+    if (readiness !== 'charging') return 0;
+    return Math.max(0, Math.min(1, 1 - this.state.cooldownTicks / SHOT_COOLDOWN_TICKS));
+  }
+
+  private currentBoardColor(): number {
+    if (this.chargeReadyFlashSeconds > 0) return this.boardChargeColor;
+    if (getPlayerTurretReadiness(this.state) === 'ready') return this.boardReadyColor;
+    return mixRgb(this.boardEmptyColor, this.boardChargeColor, this.playerChargeRatio());
+  }
+
   private render(): void {
     const graphics = this.graphics;
+    this.updateChargePresentation();
+    const boardColor = this.currentBoardColor();
+    const boardIsBright = colorLuminance(boardColor) > 0.55;
+    this.renderLineColor = boardIsBright ? 0x102832 : this.lineColor;
+    this.renderTextColor = boardIsBright ? '#07151d' : '#f4fafc';
+    this.hudText.setColor(this.renderTextColor);
+    this.noticeText.setColor(this.renderTextColor);
     graphics.clear();
-    graphics.fillStyle(this.boardColor, 1);
+    graphics.fillStyle(boardColor, 1);
     graphics.fillRect(0, 0, WIDTH, HEIGHT);
 
     const geometry = getStraightBenchGeometry(this.state);
-    graphics.lineStyle(3, this.lineColor, 0.7);
+    graphics.lineStyle(3, this.renderLineColor, 0.7);
     for (const wall of geometry.walls) {
       graphics.lineBetween(wall.start.x, wall.start.y, wall.end.x, wall.end.y);
     }
-    graphics.lineStyle(1, this.lineColor, 0.25);
+    graphics.lineStyle(1, this.renderLineColor, 0.25);
     graphics.lineBetween(BOARD_MARGIN, HEIGHT / 2, WIDTH - BOARD_MARGIN, HEIGHT / 2);
 
     this.drawGoal(graphics, 'top');
@@ -1073,9 +1126,9 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.drawFeedbackEffects(graphics);
 
     if (this.state.match.phase === 'SUSPENDED') {
-      graphics.fillStyle(this.boardColor, 0.92);
+      graphics.fillStyle(this.currentBoardColor(), 0.92);
       graphics.fillRect(0, 0, WIDTH, HEIGHT);
-      graphics.lineStyle(3, this.lineColor, 0.8);
+      graphics.lineStyle(3, this.renderLineColor, 0.8);
       graphics.strokeRect(
         BOARD_MARGIN,
         BOARD_MARGIN,
@@ -1088,10 +1141,6 @@ class TechnicalProbeScene extends Phaser.Scene {
     this.hudText.setPosition(BOARD_MARGIN + 8, 4);
     this.hudText.setText(
       `相手 ◇ ${this.state.match.cpuScore}　｜　${seconds}秒　｜　自分 ○ ${this.state.match.playerScore}`,
-    );
-    this.statusText.setPosition(BOARD_MARGIN + 8, 20);
-    this.statusText.setText(
-      `相手: ${readinessLabel(getCpuTurretReadiness(this.state))}　｜　自分: ${readinessLabel(getPlayerTurretReadiness(this.state))}`,
     );
 
     const phase = this.state.match.phase;
@@ -1146,19 +1195,6 @@ class TechnicalProbeScene extends Phaser.Scene {
     }
     if (this.state.core.phase === 'RESERVED') notices.push('2点コア予告：あと2秒');
     if (this.feedbackMessageRemainingSeconds > 0) notices.unshift(this.feedbackMessage);
-    if (
-      this.inputController.getState().phase === 'CHARGING' &&
-      (phase === 'PLAYING' || phase === 'OVERTIME')
-    ) {
-      notices.push('充電中');
-    }
-    if (this.canAim()) {
-      notices.push(
-        this.keyboardController.getState().focused
-          ? '撃てる：矢印で狙い、Enter／Spaceで発射'
-          : '撃てる：盤面を触って狙う',
-      );
-    }
     const notice = notices.join('｜');
     this.noticeText.setText(notice);
     this.noticeText.setVisible(notice.length > 0);
@@ -1203,7 +1239,7 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.lineBetween(mouthSide.start.x, mouthSide.start.y, mouthSide.end.x, mouthSide.end.y);
     }
     graphics.fillStyle(goalColor, 0.9);
-    graphics.lineStyle(2, this.lineColor, 0.85);
+    graphics.lineStyle(2, this.renderLineColor, 0.85);
     for (const post of goal.posts) {
       graphics.fillCircle(post.center.x, post.center.y, post.radius);
       graphics.strokeCircle(post.center.x, post.center.y, post.radius);
@@ -1217,7 +1253,7 @@ class TechnicalProbeScene extends Phaser.Scene {
     for (const box of board.staticBoxes) {
       graphics.fillStyle(0x102832, 1);
       graphics.fillRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
-      graphics.lineStyle(3, this.lineColor, 0.85);
+      graphics.lineStyle(3, this.renderLineColor, 0.85);
       graphics.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
     }
     for (const segment of board.staticSegments) {
@@ -1351,37 +1387,9 @@ class TechnicalProbeScene extends Phaser.Scene {
       graphics.fillRect(position.x - 18, position.y - 18, 36, 36);
       graphics.strokeRect(position.x - 18, position.y - 18, 36, 36);
     }
-    const readiness = player
-      ? getPlayerTurretReadiness(this.state)
-      : getCpuTurretReadiness(this.state);
-    const cooldownTicks = player ? this.state.cooldownTicks : this.state.cpuCooldownTicks;
-    const thinking = readiness === 'thinking';
-    const readinessColor =
-      readiness === 'ready'
-        ? color
-        : readiness === 'charging'
-          ? 0xffd34e
-          : readiness === 'thinking'
-            ? 0xc8d1e5
-            : 0x64748b;
-    const chargeRatio =
-      readiness === 'stopped'
-        ? 0.25
-        : thinking
-          ? 0.25
-          : cooldownTicks === 0
-            ? 1
-            : 1 - cooldownTicks / SHOT_COOLDOWN_TICKS;
-    graphics.lineStyle(4, readinessColor, 1);
-    graphics.strokeCircle(position.x, position.y, 26 * Math.max(0.25, chargeRatio));
+    // 発射状態は盤面全体の色で表現するため、砲台には状態ゲージを描かない。
+    // 砲台そのものは常に同じ輪郭で表示し、照準や弾の視認性を優先する。
   }
-}
-
-function readinessLabel(readiness: TurretReadiness): string {
-  if (readiness === 'ready') return '撃てる';
-  if (readiness === 'thinking') return '観測中';
-  if (readiness === 'charging') return '充電中';
-  return '停止';
 }
 
 export function mountTechnicalProbe(

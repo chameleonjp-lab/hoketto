@@ -193,6 +193,47 @@ describe('straight bench simulation', () => {
     expect(bounced.pucks[0]?.velocity.y).toBeGreaterThan(-360);
   });
 
+  it('プレイヤーの弾は外周壁で1回だけ反射し、CPUの弾は反射しない', () => {
+    const quietState = {
+      ...createStraightBenchState(20260814, 90, 'practice'),
+      pucks: [{ ...createStraightBenchState().pucks[0]!, active: false }],
+      cpuCooldownTicks: 100_000,
+      cpuThinkTicks: 100_000,
+    };
+    const playerShot = firePlayerShot(quietState, { x: 24, y: 320 });
+    const playerAfterWall = stepStraightBench(playerShot, 50);
+    const reflected = playerAfterWall.bullets.find((bullet) => bullet.owner === 'player');
+    expect(reflected).toBeDefined();
+    expect(reflected?.reflections).toBe(1);
+    expect(reflected?.velocity.x).toBeGreaterThan(0);
+
+    const secondContact = stepStraightBench(
+      {
+        ...quietState,
+        bullets: [
+          {
+            ...playerShot.bullets[0]!,
+            position: { x: 35, y: 300 },
+            velocity: { x: -900, y: 0 },
+            reflections: 1,
+          },
+        ],
+      },
+      1,
+    );
+    expect(secondContact.bullets).toHaveLength(0);
+
+    const cpuReady = {
+      ...quietState,
+      cpuThinkTicks: 0,
+      cpuCooldownTicks: 0,
+      bullets: [],
+    };
+    const cpuShot = fireCpuShot(cpuReady, { x: 24, y: 320 });
+    const cpuAfterWall = stepStraightBench(cpuShot, 50);
+    expect(cpuAfterWall.bullets.filter((bullet) => bullet.owner === 'cpu')).toHaveLength(0);
+  });
+
   it('反射板の裏側から当たっても、パックは反射後に張り付かない', () => {
     const state = createStraightBenchState(20260814, 90, 'practice', 'ricochet-lane');
     const nearRail = {
@@ -253,6 +294,30 @@ describe('straight bench simulation', () => {
 
     expect(afterRing.bullets.filter((bullet) => bullet.owner === 'player')).toHaveLength(1);
     expect(afterRing.pucks).toHaveLength(1);
+  });
+
+  it('2点コアの出現位置は盤面内の複数候補から種ごとに変わる', () => {
+    const positions = Array.from({ length: 12 }, (_, offset) => {
+      const initial = createStraightBenchState(offset + 1, 90, 'practice');
+      const nearCoreWindow = {
+        ...initial,
+        match: {
+          ...initial.match,
+          ticksRemaining: CORE_NOTICE_SECONDS * 120 + 1,
+        },
+        cpuCooldownTicks: 100_000,
+        cpuThinkTicks: 100_000,
+      };
+      return stepStraightBench(nearCoreWindow, 1).core.position;
+    });
+    const validPositions = positions.filter(
+      (position): position is { x: number; y: number } => !!position,
+    );
+    expect(validPositions).toHaveLength(12);
+    expect(
+      new Set(validPositions.map((position) => `${position.x},${position.y}`)).size,
+    ).toBeGreaterThan(2);
+    expect(new Set(validPositions.map((position) => position.y)).size).toBeGreaterThan(1);
   });
 
   it('2点コアがゴールへ入ると2点を加算する', () => {
@@ -661,6 +726,19 @@ describe('straight bench simulation', () => {
     expect(plan.reason).toBe('defense');
     expect(plan.puckId).toBe(1);
     expect(getCpuShotPlan(state)).toEqual(plan);
+  });
+
+  it('CPUの照準は直線・左スイープ・右スイープを順番に使う', () => {
+    const initial = createStraightBenchState(20260814, 90, 'normal');
+    const plans = [1, 2, 3].map((nextBulletId) => getCpuShotPlan({ ...initial, nextBulletId }));
+
+    expect(new Set(plans.map((plan) => plan.shotStyle))).toEqual(
+      new Set(['direct', 'left-sweep', 'right-sweep']),
+    );
+    expect(plans.find((plan) => plan.shotStyle === 'direct')?.aimOffset).toBe(0);
+    expect(
+      plans.filter((plan) => plan.shotStyle !== 'direct').every((plan) => plan.aimOffset !== 0),
+    ).toBe(true);
   });
 
   it('CPUの発射時に観測と照準の記録を残す', () => {

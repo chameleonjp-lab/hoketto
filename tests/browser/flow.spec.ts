@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-async function startTrial(page: Page): Promise<void> {
+async function startMatch(page: Page): Promise<void> {
   await page.goto('/');
   const playerName = page.locator('#player-name');
   await expect(page.locator('#play-button')).toBeDisabled();
@@ -9,7 +9,9 @@ async function startTrial(page: Page): Promise<void> {
   await expect(page.locator('#play-button')).toBeEnabled();
   await page.locator('#play-button').click();
   await expect(page.locator('#selection-screen')).toBeVisible();
-  await page.locator('#mode-trial').click();
+  await expect(page.locator('#mode-trial')).toHaveCount(0);
+  await expect(page.locator('#mode-match')).toHaveCount(0);
+  await expect(page.locator('.selection-static')).toContainText('90秒試合');
   await page.locator('#selection-start').click();
   await expect(page.locator('#game-screen')).toBeVisible();
   await expect(page.locator('#app')).toHaveAttribute('data-screen', 'GAME');
@@ -25,9 +27,7 @@ async function startTraining(page: Page): Promise<void> {
   await expect(page.locator('#game-screen')).toBeVisible();
   await expect(page.locator('#app')).toHaveAttribute('data-screen', 'GAME');
   await expect(page.locator('#game-title')).toHaveText('射撃場');
-  await expect(page.locator('#game-training-status')).toContainText(
-    '白いパックを狙って撃ってください',
-  );
+  await expect(page.locator('#game-training-status')).toBeHidden();
   await expect(page.locator('#game-root canvas')).toBeVisible();
 }
 
@@ -39,20 +39,11 @@ test.describe('ホケットのブラウザ導線', () => {
     await expect(page.locator('#app')).toHaveAttribute('data-screen', 'HOME');
   });
 
-  test('試合の目的と状態通知を確認できる', async ({ page }) => {
-    await startTrial(page);
+  test('試合画面は盤面を最大化し、説明と状態カードを隠す', async ({ page }) => {
+    await startMatch(page);
 
-    await expect(page.locator('#game-instructions')).toContainText('得点が多い方が勝ち');
-    await expect(page.locator('#game-goal-title')).toContainText('白いパック');
-    await expect(page.locator('#game-readiness-label')).toHaveText('撃てます');
-    await expect(page.locator('#game-readiness-detail')).toContainText('ゲージが満ちています');
-    await expect(page.locator('#game-charge-percent')).toHaveText('満タン（100%）');
-    await expect(page.locator('#game-charge-progress')).toHaveAttribute(
-      'aria-valuetext',
-      '充電完了。今すぐ発射できます。',
-    );
-    await expect(page.locator('#game-desktop-controls')).toBeVisible();
-    await expect(page.locator('#game-mobile-controls')).toBeHidden();
+    await expect(page.locator('.game-quick-status')).toBeHidden();
+    await expect(page.locator('.game-guide')).toBeHidden();
     await expect(page.locator('#game-root')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
     await expect(page.locator('#game-live-status')).toHaveText(/試合開始/);
 
@@ -71,13 +62,16 @@ test.describe('ホケットのブラウザ導線', () => {
     expect(viewportState.scrollHeight).toBeLessThanOrEqual(viewportState.clientHeight + 2);
     expect(viewportState.boardRatio).toBeGreaterThan(0.54);
     expect(viewportState.boardRatio).toBeLessThan(0.59);
+    expect(
+      await page.locator('#game-root').evaluate((element) => element.getBoundingClientRect().width),
+    ).toBeGreaterThan(330);
 
     await page.locator('#game-pause').click();
     await expect(page.locator('#game-live-status')).toHaveText(/一時停止/);
   });
 
   test('縮尺された盤面を押して離すと1発だけ発射できる', async ({ page }) => {
-    await startTrial(page);
+    await startMatch(page);
     const canvas = page.locator('#game-root canvas');
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
@@ -91,14 +85,11 @@ test.describe('ホケットのブラウザ導線', () => {
     await expect(page.locator('#game-root')).toHaveAttribute('data-player-shot-count', '1', {
       timeout: 1_000,
     });
-    await expect(page.locator('#game-readiness-label')).toHaveText('充電中', {
-      timeout: 500,
-    });
-    await expect(page.locator('#game-charge-percent')).toHaveText(/充電 \d+%/);
+    await expect(page.locator('.game-quick-status')).toBeHidden();
   });
 
   test('ホームから試合へ入り、手動停止と明示再開を完了できる', async ({ page }) => {
-    await startTrial(page);
+    await startMatch(page);
 
     const pauseButton = page.locator('#game-pause');
     await pauseButton.click();
@@ -115,7 +106,7 @@ test.describe('ホケットのブラウザ導線', () => {
   });
 
   test('画面非表示から戻っても、条件復帰だけでは自動再開しない', async ({ page }) => {
-    await startTrial(page);
+    await startMatch(page);
 
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', {
@@ -141,7 +132,7 @@ test.describe('ホケットのブラウザ導線', () => {
   });
 
   test('再開カウント中に中断しても、再開後に試合へ戻れる', async ({ page }) => {
-    await startTrial(page);
+    await startMatch(page);
 
     const pauseButton = page.locator('#game-pause');
     await pauseButton.click();

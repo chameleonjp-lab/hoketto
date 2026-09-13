@@ -6,9 +6,27 @@ export type PlayableBoardId = 'straight-bench' | 'twin-block' | 'ricochet-lane';
 const BOUNDS = { minX: 24, minY: 24, maxX: 336, maxY: 616 };
 const CORE_ROUND_RESETS = [
   { candidateIndex: 0, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
-  { candidateIndex: 1, normalPucks: [{ center: { x: 140, y: 320 }, radius: 14 }] },
-  { candidateIndex: 1, normalPucks: [{ center: { x: 220, y: 320 }, radius: 14 }] },
+  { candidateIndex: 1, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
   { candidateIndex: 2, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+  { candidateIndex: 3, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+  { candidateIndex: 4, normalPucks: [{ center: { x: 140, y: 320 }, radius: 14 }] },
+  { candidateIndex: 4, normalPucks: [{ center: { x: 220, y: 320 }, radius: 14 }] },
+  { candidateIndex: 5, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+  { candidateIndex: 6, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+  { candidateIndex: 7, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+  { candidateIndex: 8, normalPucks: [{ center: { x: 180, y: 320 }, radius: 14 }] },
+];
+
+const WIDE_CORE_CANDIDATES = [
+  { x: 90, y: 160 },
+  { x: 180, y: 160 },
+  { x: 270, y: 160 },
+  { x: 90, y: 320 },
+  { x: 180, y: 320 },
+  { x: 270, y: 320 },
+  { x: 90, y: 480 },
+  { x: 180, y: 480 },
+  { x: 270, y: 480 },
 ];
 
 export const STRAIGHT_BENCH: BoardDefinition = {
@@ -39,11 +57,7 @@ export const STRAIGHT_BENCH: BoardDefinition = {
   staticBoxes: [],
   staticSegments: [],
   initialPucks: [{ center: { x: 180, y: 320 }, radius: 14 }],
-  coreCandidates: [
-    { x: 90, y: 320 },
-    { x: 180, y: 320 },
-    { x: 270, y: 320 },
-  ],
+  coreCandidates: WIDE_CORE_CANDIDATES,
   coreRoundResets: CORE_ROUND_RESETS,
 };
 
@@ -62,9 +76,15 @@ export const TWIN_BLOCK: BoardDefinition = {
   staticSegments: [],
   initialPucks: [{ center: { x: 180, y: 320 }, radius: 14 }],
   coreCandidates: [
+    { x: 90, y: 160 },
+    { x: 180, y: 160 },
+    { x: 270, y: 160 },
     { x: 140, y: 320 },
     { x: 180, y: 320 },
     { x: 220, y: 320 },
+    { x: 90, y: 480 },
+    { x: 180, y: 480 },
+    { x: 270, y: 480 },
   ],
   coreRoundResets: CORE_ROUND_RESETS,
 };
@@ -83,11 +103,7 @@ export const RICOCHET_LANE: BoardDefinition = {
     { start: { x: 210, y: 452 }, end: { x: 282, y: 380 } },
   ],
   initialPucks: [{ center: { x: 180, y: 320 }, radius: 14 }],
-  coreCandidates: [
-    { x: 120, y: 320 },
-    { x: 180, y: 320 },
-    { x: 240, y: 320 },
-  ],
+  coreCandidates: WIDE_CORE_CANDIDATES,
   coreRoundResets: CORE_ROUND_RESETS,
 };
 

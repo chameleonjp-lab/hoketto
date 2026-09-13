@@ -6,7 +6,6 @@ import {
   canStartSelection,
   chooseBoard,
   chooseDifficulty,
-  chooseGameMode,
   cancelTutorialAction,
   completeTutorialAction,
   createAppFlowState,
@@ -98,8 +97,6 @@ const boardTwinButton = requireElement<HTMLButtonElement>('#board-twin');
 const boardRicochetButton = requireElement<HTMLButtonElement>('#board-ricochet');
 const difficultyPracticeButton = requireElement<HTMLButtonElement>('#difficulty-practice');
 const difficultyNormalButton = requireElement<HTMLButtonElement>('#difficulty-normal');
-const modeTrialButton = requireElement<HTMLButtonElement>('#mode-trial');
-const modeMatchButton = requireElement<HTMLButtonElement>('#mode-match');
 const selectionStartButton = requireElement<HTMLButtonElement>('#selection-start');
 const selectionBackButton = requireElement<HTMLButtonElement>('#selection-back');
 const homeButton = requireElement<HTMLButtonElement>('#home-button');
@@ -564,15 +561,6 @@ function render(): void {
     button.setAttribute('aria-pressed', String(selected));
     button.classList.toggle('is-selected', selected);
   }
-  const modeButtons: readonly [HTMLButtonElement, GameModeId][] = [
-    [modeTrialButton, 'trial'],
-    [modeMatchButton, 'match'],
-  ];
-  for (const [button, mode] of modeButtons) {
-    const selected = selection.mode === mode;
-    button.setAttribute('aria-pressed', String(selected));
-    button.classList.toggle('is-selected', selected);
-  }
   selectionStartButton.disabled = !canStartSelection(selection) || playerName.length === 0;
 
   const result = flow.result;
@@ -625,7 +613,10 @@ function enterGame(seed = nextSeed, kind: GameSessionKind = 'match'): void {
   if (!game) {
     game = mountTechnicalProbe(gameRoot, {
       seed,
-      durationSeconds: kind === 'training' ? 90 : flow.selection.mode === 'trial' ? 30 : 90,
+      // The public game flow is intentionally a single 90-second match.
+      // Keep the mode field for old saved records, but do not expose a second
+      // timer to new players.
+      durationSeconds: 90,
       difficulty: flow.selection.difficulty,
       board:
         kind === 'training'
@@ -645,7 +636,7 @@ function enterGame(seed = nextSeed, kind: GameSessionKind = 'match'): void {
           updateGameLiveStatus(
             kind === 'training'
               ? '弾を撃ちました。白いパックに当たると動きます。'
-              : '自分が弾を発射しました。上の充電ゲージが満ちるまで次の一発は撃てません。',
+              : '自分が弾を発射しました。充電が戻るまで次の一発は撃てません。',
           );
         }
       },
@@ -879,18 +870,6 @@ difficultyNormalButton.addEventListener('click', () => {
   render();
 });
 
-modeTrialButton.addEventListener('click', () => {
-  flow = chooseGameMode(flow, 'trial');
-  render();
-  selectionStartButton.focus();
-});
-
-modeMatchButton.addEventListener('click', () => {
-  flow = chooseGameMode(flow, 'match');
-  render();
-  selectionStartButton.focus();
-});
-
 selectionStartButton.addEventListener('click', () => {
   if (!canStartSelection(flow.selection)) return;
   enterGame();
@@ -984,5 +963,8 @@ function difficultyLabel(difficulty: DifficultyId): string {
 }
 
 function modeLabel(mode: GameModeId): string {
-  return mode === 'trial' ? '30秒の試し撃ち' : '90秒試合';
+  // Legacy records may still contain `trial`, but new matches are always
+  // presented as the single 90-second format.
+  void mode;
+  return '90秒試合';
 }
