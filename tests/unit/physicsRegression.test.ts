@@ -45,7 +45,7 @@ function withCore(
   state: StraightBenchState,
   normal: PuckState,
   core: PuckState,
-  candidateIndex = 1,
+  candidateIndex = 4,
 ): StraightBenchState {
   return {
     ...state,
@@ -172,7 +172,7 @@ describe('品質監査 H04〜H09 の試合全体の回帰', () => {
     const initial = quiet();
     const state: StraightBenchState = {
       ...initial,
-      core: { phase: 'RESERVED', position: { x: 180, y: 320 }, candidateIndex: 1 },
+      core: { phase: 'RESERVED', position: { x: 180, y: 320 }, candidateIndex: 4 },
       pucks: [puck(1, { x: 80, y: 320 }, { x: 0, y: 0 })],
       bullets: [bullet(1, { x: 180, y: 341 }, { x: 0, y: -900 })],
     };
@@ -190,7 +190,7 @@ describe('品質監査 H04〜H09 の試合全体の回帰', () => {
       const normal = puck(1, { x: 180, y: 14 }, { x: 0, y: -600 });
       const state: StraightBenchState = {
         ...initial,
-        core: { phase, position: center, candidateIndex: 1 },
+        core: { phase, position: center, candidateIndex: 4 },
         pucks: phase === 'ACTIVE' ? [normal, puck(2, center, { x: 0, y: 0 }, 2)] : [normal],
       };
       const scored = stepStraightBench(state);

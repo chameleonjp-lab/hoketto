@@ -94,6 +94,7 @@ export interface BulletState {
 }
 
 export type CpuDecisionReason = 'defense' | 'attack' | 'fallback';
+export type CpuShotStyle = 'direct' | 'left-sweep' | 'right-sweep';
 
 /** CPUが最後に観測して確定した照準。物理計算や勝敗には影響しない診断情報。 */
 export interface CpuDecisionRecord {
@@ -106,6 +107,9 @@ export interface CpuDecisionRecord {
   readonly predictedPosition: Point;
   readonly target: Point;
   readonly aimErrorRadians: number;
+  readonly shotStyle: CpuShotStyle;
+  /** 照準点を予測位置から横へずらした距離。診断用。 */
+  readonly aimOffset: number;
 }
 
 export type GoalResumePhase = 'PLAYING' | 'OVERTIME' | 'OVERTIME_NOTICE' | 'RESULT';
@@ -169,6 +173,12 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
+function seededIndex(seed: number, length: number): number {
+  if (length <= 1) return 0;
+  const mixed = (Math.imul(Math.trunc(seed), 1_664_525) + 1_013_904_223) >>> 0;
+  return mixed % length;
+}
+
 function magnitude(vector: Point): number {
   return Math.hypot(vector.x, vector.y);
 }
@@ -191,6 +201,16 @@ function cpuAimErrorRadians(state: StraightBenchState): number {
   const maximumDegrees = state.difficulty === 'normal' ? 5 : 10;
   const deterministicSample = Math.sin(state.match.seed * 12.9898 + state.nextBulletId * 78.233);
   return (deterministicSample * maximumDegrees * Math.PI) / 180;
+}
+
+function cpuShotStyle(state: StraightBenchState): CpuShotStyle {
+  // A simple seeded cycle keeps replays deterministic while preventing every
+  // CPU shot from following the same center line. Player shots also advance
+  // nextBulletId, so a human's rhythm naturally changes the next sweep side.
+  const styleIndex = Math.abs(Math.trunc(state.match.seed) + state.nextBulletId) % 3;
+  if (styleIndex === 1) return 'left-sweep';
+  if (styleIndex === 2) return 'right-sweep';
+  return 'direct';
 }
 
 function chooseCpuPuck(state: StraightBenchState): {
@@ -260,13 +280,37 @@ function chooseCpuShotPlan(state: StraightBenchState): CpuShotPlan {
       STRAIGHT_BENCH_HEIGHT - (puck?.radius ?? PUCK_RADIUS),
     ),
   };
+  const shotStyle = puck ? cpuShotStyle(state) : 'direct';
+  const baseDirection = normalize(
+    { x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y },
+    { x: 0, y: 1 },
+  );
+  const perpendicular = { x: -baseDirection.y, y: baseDirection.x };
+  const aimOffset =
+    shotStyle === 'left-sweep'
+      ? -(puck?.radius ?? PUCK_RADIUS) * 0.42
+      : shotStyle === 'right-sweep'
+        ? (puck?.radius ?? PUCK_RADIUS) * 0.42
+        : 0;
+  const aimedPoint = {
+    x: clamp(
+      clamped.x + perpendicular.x * aimOffset,
+      puck?.radius ?? PUCK_RADIUS,
+      STRAIGHT_BENCH_WIDTH - (puck?.radius ?? PUCK_RADIUS),
+    ),
+    y: clamp(
+      clamped.y + perpendicular.y * aimOffset,
+      puck?.radius ?? PUCK_RADIUS,
+      STRAIGHT_BENCH_HEIGHT - (puck?.radius ?? PUCK_RADIUS),
+    ),
+  };
   const distance = Math.max(
     1,
-    magnitude({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }),
+    magnitude({ x: aimedPoint.x - CPU_TURRET.x, y: aimedPoint.y - CPU_TURRET.y }),
   );
   const aimErrorRadians = cpuAimErrorRadians(state);
   const direction = rotate(
-    normalize({ x: clamped.x - CPU_TURRET.x, y: clamped.y - CPU_TURRET.y }, { x: 0, y: 1 }),
+    normalize({ x: aimedPoint.x - CPU_TURRET.x, y: aimedPoint.y - CPU_TURRET.y }, { x: 0, y: 1 }),
     aimErrorRadians,
   );
   return {
@@ -280,6 +324,8 @@ function chooseCpuShotPlan(state: StraightBenchState): CpuShotPlan {
       y: CPU_TURRET.y + direction.y * distance,
     },
     aimErrorRadians,
+    shotStyle,
+    aimOffset,
   };
 }
 
@@ -291,6 +337,8 @@ export interface CpuShotPlan {
   readonly predictedPosition: Point;
   readonly target: Point;
   readonly aimErrorRadians: number;
+  readonly shotStyle: CpuShotStyle;
+  readonly aimOffset: number;
 }
 
 function boardFor(state: StraightBenchState): ReturnType<typeof getBoardDefinition> {
@@ -413,7 +461,7 @@ function chooseCoreCandidate(
     .coreCandidates.map((position, index) => ({ position, index }))
     .filter(({ position }) => candidateIsClear(state, position));
   if (candidates.length === 0) return null;
-  const selected = candidates[Math.abs(state.match.seed) % candidates.length];
+  const selected = candidates[seededIndex(state.match.seed, candidates.length)];
   return selected ?? null;
 }
 
@@ -430,7 +478,7 @@ function coreRoundResetFor(state: StraightBenchState): readonly Circle[] | null 
     (reset) => reset.candidateIndex === candidateIndex,
   );
   if (variants.length === 0) return null;
-  const selected = variants[Math.abs(state.match.seed) % variants.length];
+  const selected = variants[seededIndex(state.match.seed, variants.length)];
   return selected?.normalPucks ?? null;
 }
 

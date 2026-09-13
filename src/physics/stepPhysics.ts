@@ -77,7 +77,7 @@ type MutableBullet = {
   removed: boolean;
 };
 
-type SurfaceResponse = 'reflect' | 'remove' | 'ignore';
+type SurfaceResponse = 'reflect' | 'reflect-player-once' | 'remove' | 'ignore';
 
 interface Surface {
   readonly id: number;
@@ -257,16 +257,16 @@ function surfaceList(input: StepPhysicsInput): readonly Surface[] {
     });
   }
   for (const wall of input.geometry.walls) {
-    const isGoalRail = input.geometry.goals.some((goal) =>
-      goal.rails.some((rail) => sameSegment(rail, wall)),
-    );
     if (surfaces.some((surface) => surface.segment && sameSegment(surface.segment, wall))) continue;
     surfaces.push({
       id: id++,
       shape: 'segment',
       segment: wall,
       puckResponse: 'reflect',
-      bulletResponse: isGoalRail ? 'reflect' : 'remove',
+      // Player shots get one useful bank off the outer wall. CPU shots keep
+      // the direct behavior, and a second player-wall contact removes the
+      // bullet instead of allowing an endless ricochet loop.
+      bulletResponse: 'reflect-player-once',
     });
   }
   return surfaces;
@@ -874,7 +874,10 @@ export function stepPhysics(input: StepPhysicsInput): StepPhysicsResult {
         );
         continue;
       }
-      if (contact.surface.bulletResponse === 'reflect' && bullet.reflections === 0) {
+      const canReflect =
+        contact.surface.bulletResponse === 'reflect' ||
+        (contact.surface.bulletResponse === 'reflect-player-once' && bullet.owner === 'player');
+      if (canReflect && bullet.reflections === 0) {
         bullet.velocity = reflectVector(bullet.velocity, contact.normal);
         bullet.reflections = 1;
         bullet.position = add(bullet.position, scale(contact.normal, SEPARATION_EPSILON));

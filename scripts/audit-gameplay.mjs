@@ -105,8 +105,9 @@ try {
         let playerShots = 0;
         let cpuShots = 0;
         let coreActivations = 0;
-        const coreCandidateCounts = [0, 0, 0];
+        const coreCandidateCounts = Array(9).fill(0);
         const decisionReasons = { defense: 0, attack: 0, fallback: 0 };
+        const decisionStyles = { direct: 0, 'left-sweep': 0, 'right-sweep': 0 };
         let maxAimErrorDegrees = 0;
         let goalExpansions = 0;
         let pressurePulses = 0;
@@ -159,6 +160,7 @@ try {
             cpuShots += newCpuShots.length;
             if (newCpuShots.length > 0 && state.cpuLastDecision) {
               decisionReasons[state.cpuLastDecision.reason] += newCpuShots.length;
+              decisionStyles[state.cpuLastDecision.shotStyle] += newCpuShots.length;
               maxAimErrorDegrees = Math.max(
                 maxAimErrorDegrees,
                 Math.abs((state.cpuLastDecision.aimErrorRadians * 180) / Math.PI),
@@ -242,6 +244,7 @@ try {
             coreActivations,
             coreCandidateCounts,
             decisionReasons,
+            decisionStyles,
             maxAimErrorDegrees: Number(maxAimErrorDegrees.toFixed(2)),
             goalExpansions,
             pressurePulses,
